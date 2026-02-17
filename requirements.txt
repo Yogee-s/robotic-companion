@@ -1,0 +1,62 @@
+# ===========================================================
+# Jetson Orin Nano AI Companion — Python Dependencies
+#
+# Install order matters on Jetson! Follow these steps:
+#
+#   1. bash scripts/pre_setup.sh     (system packages + venv)
+#   2. source companion_env/bin/activate
+#   3. pip install -r requirements.txt
+#   4. bash scripts/build_cuda.sh    (CUDA packages — takes 20-30 min)
+#   5. python3 scripts/download_models.py
+#
+# ===========================================================
+
+# ── Core ──
+PyYAML>=5.4,<7
+numpy>=1.24,<2               # torch 2.8 Jetson wheel needs numpy <2
+
+# ── Audio I/O ──
+PyAudio>=0.2.13
+
+# ── Speech-to-Text ──
+faster-whisper>=1.0.0         # CTranslate2 backend (CPU on aarch64)
+openai-whisper>=20240930      # PyTorch backend (uses CUDA on Jetson)
+
+# ── Text-to-Speech ──
+piper-tts>=1.2.0
+pathvalidate>=3.0             # needed by piper CLI fallback
+
+# ── Voice Activity Detection ──
+silero-vad>=5.0               # ONNX mode (no torchaudio needed)
+onnxruntime>=1.16             # ONNX runtime for Silero VAD
+
+# ── LLM (installed separately via build_cuda.sh) ──
+# llama-cpp-python            # built from source with CUDA
+
+# ── ReSpeaker USB HID ──
+pyusb>=1.2.1
+
+# ── GUI ──
+PyQt5>=5.15
+
+# ── System monitoring ──
+psutil>=5.9
+
+# ── Logging ──
+coloredlogs>=15.0
+
+# ── Dependency fixes for Jetson ──
+coverage>=7.0                 # fixes numba/coverage incompatibility
+numba>=0.60                   # needed by openai-whisper
+
+# ===========================================================
+# IMPORTANT — These are installed by scripts/build_cuda.sh,
+# NOT by pip install -r requirements.txt:
+#
+#   torch==2.8.0              (from pypi.jetson-ai-lab.io, CUDA)
+#   llama-cpp-python          (built from source with CUDA)
+#   ctranslate2               (pre-built wheel, CPU-only on aarch64)
+#
+# If torch gets overwritten to CPU, fix with:
+#   pip install torch==2.8.0 --index-url https://pypi.jetson-ai-lab.io/jp6/cu126 --no-cache-dir --no-deps
+# ===========================================================

@@ -1,0 +1,69 @@
+# ===========================================================
+# Jetson Orin Nano AI Companion — Configuration
+# ===========================================================
+
+# --- LLM (Large Language Model) ---
+llm:
+  model_path: "models/llama-3.2-3b-instruct-q4_k_m.gguf"
+  n_gpu_layers: -1            # -1 = offload ALL layers to GPU
+  context_length: 2048
+  max_tokens: 80              # Keep responses short for voice
+  temperature: 0.7
+  top_p: 0.9
+  repeat_penalty: 1.1
+  system_prompt: >
+    You are a friendly, upbeat AI companion. You are cheerful and enthusiastic.
+    Keep every response to 1-2 short sentences. Always finish with a complete sentence.
+    Never leave a thought unfinished. Be warm and fun.
+
+# --- Speech-to-Text (faster-whisper, CUDA) ---
+stt:
+  model_size: "base.en"       # tiny.en | base.en | small.en
+  device: "cuda"              # CUDA for GPU acceleration
+  compute_type: "int8"        # int8 is fastest on Jetson
+
+# --- Text-to-Speech (Piper) ---
+tts:
+  model: "en_US-hfc_female-medium" # Friendly, warm female voice
+  speaking_rate: 1.1                # Faster delivery, less wait time
+  output_sample_rate: 22050
+
+# --- Voice Activity Detection (Silero VAD) ---
+vad:
+  threshold: 0.5
+  silence_duration_ms: 500    # Faster end-of-speech detection
+  min_speech_duration_ms: 250
+  speech_pad_ms: 30
+
+# --- Audio Hardware ---
+audio:
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 512             # 32ms chunks at 16kHz (Silero-compatible)
+  input_device_name: "ReSpeaker"
+  output_device_name: ""
+
+# --- ReSpeaker Mic Array ---
+respeaker:
+  vendor_id: 0x2886
+  product_id: 0x0018
+  led_brightness: 20
+  doa_enabled: true
+
+# --- Conversation ---
+conversation:
+  mode: "ptt"                 # ptt (push-to-talk) | continuous
+  max_history: 6              # Exchanges to keep (less = faster LLM)
+  verbosity: "normal"         # brief | normal | detailed
+  log_conversations: true
+  log_directory: "logs"
+
+# --- GUI ---
+gui:
+  window_width: 1024
+  window_height: 768
+  font_size: 14
+  show_system_monitor: true
+  show_doa_visualization: true
+  doa_update_interval_ms: 100
+  system_monitor_interval_ms: 2000

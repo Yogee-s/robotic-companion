@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+models/
+*.egg-info/
+.venv/
+venv/
+companion_env/
+.env
+*.wav
+*.mp3
+logs/
+.ipynb_checkpoints/
