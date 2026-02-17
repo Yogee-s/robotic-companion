@@ -23,7 +23,8 @@ faster-whisper>=1.0.0         # CTranslate2 backend (CPU on aarch64)
 openai-whisper>=20240930      # PyTorch backend (uses CUDA on Jetson)
 
 # ── Text-to-Speech ──
-piper-tts>=1.2.0
+kokoro-onnx>=0.4.0            # Kokoro TTS — natural, human-like voice (ONNX)
+piper-tts>=1.2.0              # Piper TTS — fast fallback
 pathvalidate>=3.0             # needed by piper CLI fallback
 
 # ── Voice Activity Detection ──

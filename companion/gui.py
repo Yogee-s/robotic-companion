@@ -335,30 +335,38 @@ class CompanionGUI(QMainWindow):
         )
         cl.addWidget(self._ptt_hint, 1, 0, 1, 2)
 
+        # Voice toggle: Fast (Piper) vs Natural (Kokoro)
+        cl.addWidget(QLabel("Voice:"), 2, 0)
+        self._voice_combo = QComboBox()
+        self._voice_combo.addItems(["Fast (Piper)", "Natural (Kokoro)"])
+        self._voice_combo.setCurrentText("Fast (Piper)")
+        self._voice_combo.currentTextChanged.connect(self._on_voice_changed)
+        cl.addWidget(self._voice_combo, 2, 1)
+
         # Singlish toggle
         self._singlish_btn = QPushButton("Singlish: OFF")
         self._singlish_btn.setCheckable(True)
         self._singlish_btn.setMinimumHeight(36)
         self._singlish_btn.clicked.connect(self._on_singlish_toggled)
-        cl.addWidget(self._singlish_btn, 2, 0, 1, 2)
+        cl.addWidget(self._singlish_btn, 3, 0, 1, 2)
 
-        cl.addWidget(QLabel("Verbosity:"), 3, 0)
+        cl.addWidget(QLabel("Verbosity:"), 4, 0)
         self._verbosity_combo = QComboBox()
         self._verbosity_combo.addItems(["brief", "normal", "detailed"])
         self._verbosity_combo.setCurrentText("normal")
         self._verbosity_combo.currentTextChanged.connect(self._on_verbosity_changed)
-        cl.addWidget(self._verbosity_combo, 3, 1)
+        cl.addWidget(self._verbosity_combo, 4, 1)
 
-        cl.addWidget(QLabel("Volume:"), 4, 0)
+        cl.addWidget(QLabel("Volume:"), 5, 0)
         self._volume_slider = QSlider(Qt.Horizontal)
         self._volume_slider.setRange(0, 100)
         self._volume_slider.setValue(80)
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
-        cl.addWidget(self._volume_slider, 4, 1)
+        cl.addWidget(self._volume_slider, 5, 1)
 
         self._clear_btn = QPushButton("Clear History")
         self._clear_btn.clicked.connect(self._on_clear)
-        cl.addWidget(self._clear_btn, 5, 0, 1, 2)
+        cl.addWidget(self._clear_btn, 6, 0, 1, 2)
 
         cg.setLayout(cl)
         right_l.addWidget(cg)
@@ -599,6 +607,24 @@ class CompanionGUI(QMainWindow):
                 "border-radius: 6px; font-size: 14px; font-weight: bold; "
                 "color: #a6e3a1; padding: 8px;"
             )
+
+    def _on_voice_changed(self, voice_text: str):
+        if not self._conversation:
+            return
+        tts = self._conversation._tts
+        llm = self._conversation._llm
+        if "Kokoro" in voice_text:
+            tts.set_engine("kokoro")
+            # Shorter responses for natural voice (reduces wait time)
+            llm.max_tokens = 40
+            self._verbosity_combo.setCurrentText("brief")
+            self._conversation.set_verbosity("brief")
+        else:
+            tts.set_engine("piper")
+            # Restore normal response length
+            llm.max_tokens = 80
+            self._verbosity_combo.setCurrentText("normal")
+            self._conversation.set_verbosity("normal")
 
     def _on_singlish_toggled(self):
         enabled = self._singlish_btn.isChecked()

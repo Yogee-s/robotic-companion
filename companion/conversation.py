@@ -233,32 +233,24 @@ class ConversationManager:
                 text = "".join(sentence_buf).strip()
                 words = len(text.split())
 
-                # 1. Sentence boundary — flush immediately
+                # 1. Sentence boundary (.!?) — flush full sentences only
+                #    This avoids mid-sentence splits that cause audible gaps.
                 if text and text[-1] in ".!?" and words >= 2:
                     _flush_buf()
                     return
 
-                # 2. Comma / semicolon / colon — flush if clause is long
-                if text and text[-1] in ",;:" and words >= 5:
-                    _flush_buf()
-                    return
-
-                # 3. Newline
+                # 2. Newline — treat as sentence end
                 if text and text[-1] == "\n" and text.strip():
                     _flush_buf()
                     return
 
-                # 4. Time-based: if >1.2s since last flush and we have
-                #    enough words, flush so the user hears something soon
-                if words >= 4 and (time.time() - last_flush_time[0]) > 1.2:
-                    _flush_buf()
-                    return
+            # Stream worker: synthesize sentences and pipe PCM into one
+            # continuous aplay process — no gaps between sentences.
+            def stream_worker():
+                """Synthesize sentences and write PCM to a single audio stream."""
+                aplay_open = False
 
-            def tts_play_worker():
-                """Synthesize and play sentences as they arrive from the LLM."""
-                while True:
-                    if self._state != ConversationState.SPEAKING:
-                        break
+                while self._state == ConversationState.SPEAKING:
                     try:
                         sentence = sentence_queue.get(timeout=0.15)
                     except queue.Empty:
@@ -266,22 +258,26 @@ class ConversationManager:
                             break
                         continue
 
-                    # Synthesize
+                    if self._state != ConversationState.SPEAKING:
+                        break
+
                     pcm = self._tts.synthesize(sentence)
                     if pcm is None or self._state != ConversationState.SPEAKING:
                         continue
 
-                    # Play and wait for completion
-                    self._audio_output.play_pcm(pcm, self._tts.output_sample_rate)
-                    while self._audio_output.is_playing:
-                        if self._state != ConversationState.SPEAKING:
-                            self._audio_output.stop()
-                            return
-                        time.sleep(0.03)
+                    # Open the audio stream on the first chunk
+                    if not aplay_open:
+                        self._audio_output.start_stream(self._tts.output_sample_rate)
+                        aplay_open = True
 
-            # Start the TTS+playback worker
-            worker = threading.Thread(target=tts_play_worker, daemon=True)
-            worker.start()
+                    self._audio_output.write_stream(pcm)
+
+                # Close the stream — aplay plays remaining buffered audio
+                if aplay_open:
+                    self._audio_output.finish_stream()
+
+            t_stream = threading.Thread(target=stream_worker, daemon=True)
+            t_stream.start()
 
             # Generate (blocks until complete; on_token fires per token)
             t_llm_start = time.time()
@@ -299,7 +295,7 @@ class ConversationManager:
                 sentence_queue.put(remaining)
 
             generation_done.set()
-            worker.join(timeout=30)
+            t_stream.join(timeout=30)
 
             t_total = time.time() - t_start
             logger.info(
@@ -355,7 +351,7 @@ class ConversationManager:
     def _build_system_prompt(self) -> str:
         base = self._llm.system_prompt
         addons = {
-            "brief": " Keep answers to 1-2 sentences maximum.",
+            "brief": " Reply in exactly 1 short sentence. Be concise.",
             "normal": "",
             "detailed": " Provide thorough, detailed answers.",
         }
@@ -409,7 +405,19 @@ class ConversationManager:
 
     def push_to_talk_pressed(self):
         """Called when the user presses the talk key (spacebar)."""
-        if self._mode == "ptt" and self._state == ConversationState.IDLE:
+        if self._mode != "ptt":
+            return
+
+        # If the AI is speaking, interrupt it so the user can talk
+        if self._state == ConversationState.SPEAKING:
+            logger.info("PTT pressed — interrupting AI speech.")
+            self._audio_output.stop()
+            self._llm.cancel()
+            self._vad.reset()
+            self._set_state(ConversationState.LISTENING)
+            return
+
+        if self._state == ConversationState.IDLE:
             self._vad.reset()
             self._set_state(ConversationState.LISTENING)
 

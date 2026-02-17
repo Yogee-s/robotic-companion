@@ -327,10 +327,74 @@ class AudioOutput:
                 self._playing = False
                 self._last_play_end = time.time()
 
+    # ------------------------------------------------------------------
+    # Streaming playback: one aplay process, feed PCM chunks seamlessly
+    # ------------------------------------------------------------------
+
+    def start_stream(self, sample_rate: int):
+        """Open a persistent aplay process for seamless streaming."""
+        self.stop()
+        self._stop_event.clear()
+        self._playing = True
+
+        sr = sample_rate
+        for dev in [AudioOutput._alsa_device, None]:
+            cmd = [
+                "aplay", "-q",
+                "-f", "S16_LE",
+                "-r", str(sr),
+                "-c", "1",
+                "-t", "raw",
+            ]
+            if dev:
+                cmd.extend(["-D", dev])
+            try:
+                self._aplay_proc = subprocess.Popen(
+                    cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+                return True
+            except Exception as e:
+                logger.debug(f"aplay stream open {dev or 'default'}: {e}")
+                continue
+        self._playing = False
+        return False
+
+    def write_stream(self, pcm_data: bytes):
+        """Write a PCM chunk to the running aplay stream."""
+        if self._aplay_proc is None or self._stop_event.is_set():
+            return
+        try:
+            audio = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
+            audio *= self._volume
+            raw = np.clip(audio, -32768, 32767).astype(np.int16).tobytes()
+            self._aplay_proc.stdin.write(raw)
+            self._aplay_proc.stdin.flush()
+        except Exception as e:
+            logger.debug(f"Stream write error: {e}")
+
+    def finish_stream(self):
+        """Close stdin and wait for aplay to finish playing buffered audio."""
+        if self._aplay_proc is None:
+            self._playing = False
+            return
+        try:
+            self._aplay_proc.stdin.close()
+            self._aplay_proc.wait(timeout=60)
+        except Exception:
+            pass
+        finally:
+            self._aplay_proc = None
+            self._playing = False
+            self._last_play_end = time.time()
+
     def stop(self):
         """Stop any active playback."""
         self._stop_event.set()
         if self._aplay_proc:
+            try:
+                self._aplay_proc.stdin.close()
+            except Exception:
+                pass
             try:
                 self._aplay_proc.terminate()
             except Exception:
@@ -338,6 +402,7 @@ class AudioOutput:
         start = time.time()
         while self._playing and (time.time() - start) < 0.5:
             time.sleep(0.05)
+        self._aplay_proc = None
 
     @property
     def is_playing(self) -> bool:

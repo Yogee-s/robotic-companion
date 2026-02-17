@@ -18,15 +18,20 @@ llm:
 
 # --- Speech-to-Text (faster-whisper, CUDA) ---
 stt:
-  model_size: "base.en"       # tiny.en | base.en | small.en
+  model_size: "base.en"       # base.en on CUDA (small.en too large for GPU with LLM)
   device: "cuda"              # CUDA for GPU acceleration
   compute_type: "int8"        # int8 is fastest on Jetson
+  beam_size: 5                # Higher beam = more accurate (1=fastest, 5=default)
+  language: "en"              # Skip language detection
 
-# --- Text-to-Speech (Piper) ---
+# --- Text-to-Speech ---
 tts:
-  model: "en_US-hfc_female-medium" # Friendly, warm female voice
-  speaking_rate: 1.1                # Faster delivery, less wait time
+  engine: "piper"               # piper (fast, default) | kokoro (natural, slower)
+  voice: "af_heart"             # Kokoro voice: af_heart, af_bella, af_sarah, af_nicole, af_sky
+  speaking_rate: 1.1            # Speed multiplier (>1 = faster)
+  lang: "en-us"                 # en-us | en-gb
   output_sample_rate: 22050
+  piper_model: "en_US-hfc_female-medium"  # Piper voice model
 
 # --- Voice Activity Detection (Silero VAD) ---
 vad:

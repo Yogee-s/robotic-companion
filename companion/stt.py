@@ -26,7 +26,8 @@ class SpeechToText:
         self.model_size = config.get("model_size", "base.en")
         self.device = config.get("device", "cuda")
         self.compute_type = config.get("compute_type", "int8")
-        self.language = "en"  # default; set to None for multilingual
+        self.beam_size = config.get("beam_size", 5)
+        self.language = config.get("language", "en")
 
         self._model = None
         self._backend = None  # "faster-whisper" or "openai-whisper"
@@ -165,8 +166,8 @@ class SpeechToText:
         segments, info = self._model.transcribe(
             audio,
             language=language,
-            beam_size=1,
-            best_of=1,
+            beam_size=self.beam_size,
+            best_of=self.beam_size,
             vad_filter=True,
             vad_parameters=dict(
                 min_silence_duration_ms=200,
@@ -180,14 +181,13 @@ class SpeechToText:
 
     def _transcribe_openai(self, audio: np.ndarray, language: str) -> str:
         """Transcribe using openai-whisper (PyTorch)."""
-        import torch
-        # openai-whisper expects float32 tensor or numpy
         result = self._model.transcribe(
             audio,
             language=language,
             fp16=(self.device == "cuda"),
-            beam_size=1,
-            best_of=1,
+            beam_size=self.beam_size,
+            best_of=self.beam_size,
+            temperature=0,
             without_timestamps=True,
             condition_on_previous_text=False,
         )
