@@ -1,44 +1,64 @@
-# ===========================================================
-# Jetson Orin Nano AI Companion — Python Dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+#  Robotic Companion — Python dependencies
 #
-# Install order matters on Jetson! Follow these steps:
+#  Install order matters on Jetson. The canonical path is:
+#    1.  bash scripts/setup.sh                  (system + CUDA pkgs + venv + CH341 driver)
+#    2.  source companion_env/bin/activate
+#    3.  pip install -r requirements.txt
+#    4.  python3 scripts/download_models.py     (LLMs + VLM + STT + TTS + vision)
+#    5.  bash scripts/flash_firmware.sh         (ESP32 face firmware, one-time)
+#    6.  python3 main.py
 #
-#   1. bash scripts/pre_setup.sh     (system packages + venv)
-#   2. source companion_env/bin/activate
-#   3. pip install -r requirements.txt
-#   4. bash scripts/build_cuda.sh    (CUDA packages — takes 20-30 min)
-#   5. python3 scripts/download_models.py
-#
-# ===========================================================
+#  CUDA-dependent packages (torch, llama-cpp-python CUDA, ctranslate2) are
+#  installed by `scripts/setup.sh` using Jetson-specific wheels, NOT from PyPI.
+# ═══════════════════════════════════════════════════════════════════════════
 
 # ── Core ──
-PyYAML>=5.4,<7
-numpy>=1.24,<2               # torch 2.8 Jetson wheel needs numpy <2
+PyYAML>=6.0
+numpy>=1.24,<2                     # torch Jetson wheel requires numpy <2
 
 # ── Audio I/O ──
 PyAudio>=0.2.13
 
 # ── Speech-to-Text ──
-faster-whisper>=1.0.0         # CTranslate2 backend (CPU on aarch64)
-openai-whisper>=20240930      # PyTorch backend (uses CUDA on Jetson)
+faster-whisper>=1.0.0              # CPU fallback for STT; CUDA via ctranslate2
 
 # ── Text-to-Speech ──
-kokoro-onnx>=0.4.0            # Kokoro TTS — natural, human-like voice (ONNX)
-piper-tts>=1.2.0              # Piper TTS — fast fallback
-pathvalidate>=3.0             # needed by piper CLI fallback
+kokoro-onnx>=0.4.0                 # primary: natural, human-like voice
+piper-tts>=1.2.0                   # fast fallback
+pathvalidate>=3.0                  # piper CLI fallback dep
 
-# ── Voice Activity Detection ──
-silero-vad>=5.0               # ONNX mode (no torchaudio needed)
-onnxruntime>=1.16             # ONNX runtime for Silero VAD
+# ── Voice Activity Detection + End-of-Utterance ──
+silero-vad>=5.0
+onnxruntime>=1.16                  # for Silero + EOU semantic turn model
 
-# ── LLM (installed separately via build_cuda.sh) ──
-# llama-cpp-python            # built from source with CUDA
+# ── Sentence segmentation (replaces naive .!? split) ──
+pysbd>=0.3.4
+
+# ── Wake word ──
+openwakeword>=0.6.0
+
+# ── Speaker identification (TitaNet via ONNX) ──
+# onnxruntime already pulled above
+
+# ── Persistent memory ──
+mem0ai>=0.1.30
+chromadb>=0.5.0
 
 # ── ReSpeaker USB HID ──
 pyusb>=1.2.1
 
+# ── Display (touchscreen + HDMI fallback) ──
+pygame>=2.5.0
+pyserial>=3.5                      # Jetson ↔ ESP32 serial
+
 # ── GUI ──
 PyQt5>=5.15
+pyqtgraph>=0.13
+
+# ── Vision (emotion + face + VLM) ──
+opencv-contrib-python>=4.8         # cv2.FaceDetectorYN (YuNet)
+onnxruntime-gpu>=1.16              # CUDA EP for HSEmotion + EOU + TitaNet
 
 # ── System monitoring ──
 psutil>=5.9
@@ -46,18 +66,13 @@ psutil>=5.9
 # ── Logging ──
 coloredlogs>=15.0
 
-# ── Dependency fixes for Jetson ──
-coverage>=7.0                 # fixes numba/coverage incompatibility
-numba>=0.60                   # needed by openai-whisper
-
-# ===========================================================
-# IMPORTANT — These are installed by scripts/build_cuda.sh,
-# NOT by pip install -r requirements.txt:
+# ═══════════════════════════════════════════════════════════════════════════
+# Installed separately by scripts/setup.sh (DO NOT pin here):
+#   torch==2.8.0                 (Jetson AI Lab wheel, CUDA)
+#   llama-cpp-python             (built from source with CUDA + Gemma 4 support)
+#   ctranslate2                  (pre-built Jetson wheel, backs faster-whisper CUDA)
 #
-#   torch==2.8.0              (from pypi.jetson-ai-lab.io, CUDA)
-#   llama-cpp-python          (built from source with CUDA)
-#   ctranslate2               (pre-built wheel, CPU-only on aarch64)
-#
-# If torch gets overwritten to CPU, fix with:
-#   pip install torch==2.8.0 --index-url https://pypi.jetson-ai-lab.io/jp6/cu126 --no-cache-dir --no-deps
-# ===========================================================
+# If torch gets overwritten to CPU, restore with:
+#   pip install torch==2.8.0 --index-url https://pypi.jetson-ai-lab.io/jp6/cu126 \
+#     --no-cache-dir --no-deps
+# ═══════════════════════════════════════════════════════════════════════════

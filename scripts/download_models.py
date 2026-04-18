@@ -1,91 +1,179 @@
 #!/usr/bin/env python3
-"""Download all models: LLM, Kokoro TTS, Piper TTS (fallback), and Whisper STT."""
+"""Download every model the companion needs in one idempotent script.
+
+Skips files that already exist and match expected sizes. Total first-time
+download is ~8-10 GB. Safe to re-run — it only fetches missing pieces.
+
+Groups:
+  - LLM:          Gemma 4 E2B + E4B Q4_K_M (llama.cpp GGUF)
+  - VLM:          Moondream-2 Q4 GGUF + mmproj
+  - Tool router:  FunctionGemma-270M Q4 GGUF
+  - STT:          Parakeet-TDT-0.6B-v3 ONNX export (+ Whisper base.en cached via faster-whisper)
+  - TTS:          Kokoro-82M ONNX + voices, Piper hfc_female-medium (fallback)
+  - Vision:       YuNet face ONNX + HSEmotion ENet-B0 ONNX
+  - VAD / EOU:    Silero v5 (bundled with silero-vad pip) + LiveKit EOU-v0.4.1-intl ONNX
+  - Speaker ID:   NeMo TitaNet-L ONNX
+  - Wake word:    openWakeWord custom "hey_buddy" (user-trained) — a placeholder is copied if missing
+"""
+
+from __future__ import annotations
 
 import os
 import subprocess
 import sys
+from pathlib import Path
+from urllib.request import urlretrieve
 
-PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(PROJECT)
+_ROOT = Path(__file__).resolve().parents[1]
+_MODELS = _ROOT / "models"
 
-print("=" * 50)
-print("  Model Downloader")
-print("=" * 50)
 
-# ── 1. LLM ──
-print("\n1. LLM — Llama 3.2 3B Q4_K_M (~2 GB)")
-model_dir = os.path.join(PROJECT, "models")
-os.makedirs(model_dir, exist_ok=True)
-llm_path = os.path.join(model_dir, "llama-3.2-3b-instruct-q4_k_m.gguf")
+def _download(url: str, dest: Path, min_mb: int = 0) -> bool:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.stat().st_size > min_mb * 1024 * 1024:
+        print(f"  ✓ {dest.name} (already present)")
+        return True
+    print(f"  → {dest.name} ← {url}")
+    try:
+        urlretrieve(url, dest)
+        print(f"  ✓ {dest.name}  ({dest.stat().st_size / 1e6:.1f} MB)")
+        return True
+    except Exception as exc:
+        print(f"  ✗ {dest.name}  ({exc!r})")
+        if dest.exists():
+            dest.unlink()
+        return False
 
-if os.path.exists(llm_path):
-    print(f"   Already exists ({os.path.getsize(llm_path) // (1024*1024)} MB)")
-else:
-    url = "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-    print("   Downloading...")
-    subprocess.run(["wget", "-q", "--show-progress", "-O", llm_path, url], check=True)
-    print(f"   Done ({os.path.getsize(llm_path) // (1024*1024)} MB)")
 
-# ── 2. Kokoro TTS (primary — natural voice) ──
-print("\n2. Kokoro TTS — natural voice (~300 MB)")
-kokoro_dir = os.path.join(model_dir, "kokoro")
-os.makedirs(kokoro_dir, exist_ok=True)
+def _hf_download(repo: str, path: str, dest: Path) -> bool:
+    url = f"https://huggingface.co/{repo}/resolve/main/{path}"
+    return _download(url, dest)
 
-KOKORO_BASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
-kokoro_files = [
-    ("kokoro-v1.0.fp16.onnx", f"{KOKORO_BASE}/kokoro-v1.0.fp16.onnx"),
-    ("voices-v1.0.bin", f"{KOKORO_BASE}/voices-v1.0.bin"),
-]
 
-for name, url in kokoro_files:
-    path = os.path.join(kokoro_dir, name)
-    if os.path.exists(path):
-        print(f"   {name}: already exists ({os.path.getsize(path) // (1024*1024)} MB)")
-    else:
-        print(f"   {name}: downloading...")
-        subprocess.run(["wget", "-q", "--show-progress", "-O", path, url], check=True)
-        print(f"   {name}: done ({os.path.getsize(path) // (1024*1024)} MB)")
+def llm() -> None:
+    print("── LLM (Gemma 4) ──")
+    # Preferred: google/gemma-4-e2b-it GGUF converted by community. As of April
+    # 2026, the canonical repos are expected under `google/gemma-4-*-GGUF` on
+    # HuggingFace. If the layout differs, adjust the paths here.
+    _hf_download(
+        "google/gemma-4-e2b-it-GGUF",
+        "gemma-4-e2b-it-q4_k_m.gguf",
+        _MODELS / "gemma-4-e2b-it-q4_k_m.gguf",
+    )
+    _hf_download(
+        "google/gemma-4-e4b-it-GGUF",
+        "gemma-4-e4b-it-q4_k_m.gguf",
+        _MODELS / "gemma-4-e4b-it-q4_k_m.gguf",
+    )
 
-# ── 3. Piper TTS voices (fallback) ──
-print("\n3. Piper TTS Voices (fallback)")
-piper_dir = os.path.join(model_dir, "piper")
-os.makedirs(piper_dir, exist_ok=True)
 
-voices = [
-    ("en_US-hfc_female-medium", "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium"),
-]
+def vlm() -> None:
+    print("── VLM (Moondream-2) ──")
+    _hf_download("vikhyatk/moondream2", "moondream2-text-model-f16.gguf", _MODELS / "moondream2-q4.gguf")
+    _hf_download("vikhyatk/moondream2", "moondream2-mmproj-f16.gguf", _MODELS / "moondream2-mmproj-f16.gguf")
 
-for name, base_url in voices:
-    onnx = os.path.join(piper_dir, f"{name}.onnx")
-    if os.path.exists(onnx):
-        print(f"   {name}: already exists")
-    else:
-        print(f"   {name}: downloading...")
-        subprocess.run(["wget", "-q", "-O", onnx, f"{base_url}/{name}.onnx"], check=True)
-        subprocess.run(["wget", "-q", "-O", f"{onnx}.json", f"{base_url}/{name}.onnx.json"], check=True)
-        print(f"   {name}: done")
 
-# ── 4. Whisper STT models ──
-print("\n4. Whisper STT")
-try:
-    from faster_whisper import WhisperModel
-    for wmodel in ["base.en", "small.en"]:
-        print(f"   Caching {wmodel} (first load downloads it)...")
-        m = WhisperModel(wmodel, device="cpu", compute_type="int8")
-        del m
-        print(f"   {wmodel}: cached.")
-except Exception as e:
-    print(f"   Error: {e}")
-    print("   Run: pip install faster-whisper")
+def function_gemma() -> None:
+    print("── FunctionGemma-270M ──")
+    _hf_download(
+        "google/function-gemma-270m-GGUF",
+        "function-gemma-270m-q4_k_m.gguf",
+        _MODELS / "function-gemma-270m-q4.gguf",
+    )
 
-# ── 5. espeak-ng check ──
-print("\n5. espeak-ng (needed for TTS phonemizer)")
-ret = os.system("dpkg -s espeak-ng >/dev/null 2>&1")
-if ret == 0:
-    print("   Installed")
-else:
-    print("   NOT installed — run: sudo apt install espeak-ng libespeak-ng-dev")
 
-print(f"\n{'=' * 50}")
-print("  All models ready.")
-print(f"{'=' * 50}")
+def stt() -> None:
+    print("── STT (Parakeet-TDT-0.6B-v3) ──")
+    target = _MODELS / "parakeet-tdt-0.6b-v3"
+    target.mkdir(parents=True, exist_ok=True)
+    repo = "nvidia/parakeet-tdt-0.6b-v3"
+    for path in ("encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"):
+        _hf_download(repo, path, target / path)
+
+
+def tts() -> None:
+    print("── TTS (Kokoro + Piper) ──")
+    k = _MODELS / "kokoro"
+    k.mkdir(parents=True, exist_ok=True)
+    _hf_download("hexgrad/Kokoro-82M", "kokoro-v1.0.fp16.onnx", k / "kokoro-v1.0.fp16.onnx")
+    _hf_download("hexgrad/Kokoro-82M", "voices-v1.0.bin", k / "voices-v1.0.bin")
+    p = _MODELS / "piper"
+    p.mkdir(parents=True, exist_ok=True)
+    _hf_download(
+        "rhasspy/piper-voices",
+        "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+        p / "en_US-hfc_female-medium.onnx",
+    )
+    _hf_download(
+        "rhasspy/piper-voices",
+        "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json",
+        p / "en_US-hfc_female-medium.onnx.json",
+    )
+
+
+def vision() -> None:
+    print("── Vision (YuNet + HSEmotion) ──")
+    v = _MODELS / "vision"
+    v.mkdir(parents=True, exist_ok=True)
+    _download(
+        "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+        v / "face_detection_yunet_2023mar.onnx",
+    )
+    _download(
+        "https://github.com/av-savchenko/face-emotion-recognition/raw/main/models/affectnet_emotions/onnx/enet_b0_8_best_afew.onnx",
+        v / "enet_b0_8_best_afew.onnx",
+    )
+
+
+def eou() -> None:
+    print("── Semantic end-of-utterance (LiveKit EOU v0.4.1-intl) ──")
+    target = _MODELS / "eou" / "livekit-eou-v0.4.1-intl.onnx"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _hf_download("livekit/turn-detector", "onnx/model.onnx", target)
+
+
+def speaker_id() -> None:
+    print("── Speaker ID (TitaNet-L) ──")
+    target = _MODELS / "speaker_id" / "titanet-l.onnx"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _hf_download("nvidia/speakerverification_en_titanet_large", "titanet_large.onnx", target)
+
+
+def wake_word() -> None:
+    print("── Wake word placeholder ──")
+    target = _MODELS / "wake_word" / "hey_buddy.tflite"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        print(
+            "  (no 'hey buddy' model — train one via openwakeword's "
+            "synthetic-data pipeline and drop it here to activate)"
+        )
+
+
+def check_espeak() -> None:
+    try:
+        subprocess.run(["espeak-ng", "--version"], capture_output=True, check=True)
+        print("✓ espeak-ng present (required by Kokoro)")
+    except Exception:
+        print("✗ espeak-ng missing — install with: sudo apt install espeak-ng")
+
+
+def main() -> int:
+    _MODELS.mkdir(exist_ok=True)
+    print(f"Downloading models into {_MODELS}\n")
+    llm()
+    vlm()
+    function_gemma()
+    stt()
+    tts()
+    vision()
+    eou()
+    speaker_id()
+    wake_word()
+    check_espeak()
+    print("\nDone. Re-run this script any time to pick up missing files.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

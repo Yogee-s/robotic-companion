@@ -1,123 +1,193 @@
-# AI Companion — Jetson Orin Nano
+# Companion
 
-A fully offline voice-activated AI companion running on Jetson Orin Nano 8GB.
+A fully-offline multimodal AI companion robot for the Jetson Orin Nano 8 GB.
 
-Speak naturally and get fast, spoken responses — all processed locally on the GPU.
+It hears you, sees you, remembers you, answers visually ("what is this?"),
+runs tools (timers, volume, reminders), and animates a face on a small
+touchscreen that the ESP32 module renders locally. 100 % of inference
+happens on-device — no cloud, no API keys.
 
-## How It Works
+## Features
 
-```
-Microphone → VAD → STT → LLM → TTS → Speaker
-              (Silero) (Whisper) (Llama)  (Piper)
-```
-
-Sentences are synthesized and played **while the LLM is still generating**,
-so you hear the response as soon as the first sentence is ready.
-
-## Project Structure
-
-```
-robotic-companion/
-├── companion/              # Core modules
-│   ├── audio_io.py         #   Mic capture & speaker playback
-│   ├── vad.py              #   Voice Activity Detection (Silero ONNX)
-│   ├── stt.py              #   Speech-to-Text (faster-whisper / openai-whisper)
-│   ├── llm.py              #   LLM inference (llama-cpp-python, CUDA)
-│   ├── tts.py              #   Text-to-Speech (Piper, cached model)
-│   ├── respeaker.py        #   ReSpeaker USB mic array (DOA + LEDs)
-│   ├── conversation.py     #   Streaming pipeline orchestrator
-│   └── gui.py              #   PyQt5 GUI
-├── scripts/                # Setup & build scripts
-│   ├── pre_setup.sh        #   One-time system packages + venv + pip deps
-│   ├── build_cuda.sh       #   Build CUDA packages (torch, llama-cpp, etc.)
-│   ├── verify_gpu.py       #   Check GPU support for all components
-│   └── download_models.py  #   Download LLM, TTS, STT models
-├── tests/                  # Test scripts
-│   ├── test_pipeline.py    #   End-to-end: mic → STT → LLM → TTS → speaker
-│   └── test_respeaker_gui.py
-├── models/                 # Downloaded models (gitignored)
-├── config.yaml             # All tunable parameters
-├── main.py                 # Application entry point
-├── setup_and_test.ipynb    # Interactive setup notebook
-└── requirements.txt        # Python dependencies (with install instructions)
-```
-
-## Quick Start (Fresh Install)
-
-### 1. System packages + venv + Python deps (once)
-```bash
-cd ~/Desktop/robotic-companion
-bash scripts/pre_setup.sh
-```
-This installs system packages (CUDA, espeak-ng, portaudio, etc.), creates the
-`companion_env` Python venv, installs all pip dependencies, and configures ReSpeaker.
-
-### 2. Build CUDA packages (~20-30 min, once)
-```bash
-source companion_env/bin/activate
-bash scripts/build_cuda.sh
-```
-This builds/installs:
-- **torch 2.8.0** (CUDA, from NVIDIA Jetson AI Lab)
-- **llama-cpp-python** (built from source with CUDA)
-- **ctranslate2** (for faster-whisper)
-- **openai-whisper** (PyTorch CUDA STT backend)
-- torchaudio shim + dependency fixes
-
-### 3. Download models
-```bash
-python3 scripts/download_models.py
-```
-
-### 4. Verify GPU (optional)
-```bash
-python3 scripts/verify_gpu.py
-```
-
-### 5. Run
-```bash
-python3 main.py
-```
-Press **SPACE** to talk (push-to-talk mode). Toggle continuous mode in the GUI.
-
-## Rebuilding the Environment
-
-If you need to start fresh:
-```bash
-cd ~/Desktop/robotic-companion
-rm -rf companion_env
-bash scripts/pre_setup.sh
-source companion_env/bin/activate
-bash scripts/build_cuda.sh
-python3 scripts/download_models.py
-python3 main.py
-```
+- **Natural voice loop** — mic → VAD → STT → LLM → TTS → speaker with
+  streaming: TTS starts on the first sentence while the LLM is still
+  generating.
+- **Interruption** — speak while the robot is replying; it stops within
+  ~300 ms and listens.
+- **Semantic end-of-turn** — a small transformer decides whether you're
+  actually finished or just paused, so the robot stops cutting you off.
+- **Emotion-aware** — the camera runs an 8-emotion classifier and a
+  valence/arousal signal is injected into the LLM prompt (gated so it
+  never spams context).
+- **Scene awareness** — Moondream-2 captions the camera feed 1–2 times a
+  second, and the caption is available to the LLM as context.
+- **Visual Q&A** — ask "what am I holding?" / "can you read this?" and
+  the VLM answers from the current frame.
+- **Persistent memory** — Mem0 + local Chroma, per-speaker scope. Next
+  time you talk, the robot can recall what you said yesterday.
+- **Speaker ID** — TitaNet-L embeddings identify who is speaking so
+  memory + tone can be personalised.
+- **Wake word** — optional "Hey Buddy" idle-listening mode via
+  openWakeWord (disabled by default).
+- **Tool calling** — a 270 M FunctionGemma sidecar routes *"set a timer
+  for 5 minutes"* and friends to real callable tools.
+- **Touchscreen face** — custom ESP32 firmware on a Diymore 2.8"
+  240×320 display renders the face locally; Jetson sends tiny state
+  commands over serial at 30 Hz; tap the screen to reveal 4 big buttons
+  (mute / stop / sleep / more). Pygame fallback runs on HDMI for
+  development.
+- **DOA-driven gaze** — the face's eyes glance toward whoever is
+  speaking, using ReSpeaker beam-forming.
+- **Lip-sync** — Rhubarb viseme timings drive the mouth during TTS
+  playback.
+- **Proactive mode (opt-in)** — the robot can greet familiar faces and
+  check in when you seem sad. Rate-limited.
+- **Privacy toggle** — cover the camera in software (face shows a
+  "blindfold" band).
 
 ## Hardware
 
-- **Jetson Orin Nano 8GB** (JetPack 6.2 / L4T R36.5)
-- **ReSpeaker USB Mic Array v3.1** (DOA + LEDs)
-- **USB Speaker**
+| Device | Model |
+|---|---|
+| Compute | Jetson Orin Nano 8 GB, JetPack 6.x |
+| Mic | Seeed ReSpeaker 4-Mic USB Array (`2886:0018`) |
+| Speaker | Any USB audio device |
+| Camera | CSI module at `cam0` (IMX219 or similar) |
+| Touchscreen | Diymore ESP32 2.8" 240×320 (ILI9341 + XPT2046 + CH340) |
 
-## Stack
+## Quick start
 
-| Component | Technology | Runs on |
-|-----------|-----------|---------|
-| LLM | llama-cpp-python — Llama 3.2 3B Q4_K_M | **GPU** |
-| STT | openai-whisper (CUDA) / faster-whisper (CPU fallback) | GPU/CPU |
-| TTS | Piper — hfc_female-medium | CPU |
-| VAD | Silero VAD v5 (ONNX) | CPU |
-| DOA | ReSpeaker USB HID (XVF-3800) | USB |
-| GUI | PyQt5 | — |
+```bash
+git clone <repo> companion && cd companion
 
-## Key Optimizations
+# 1. System + CUDA + CH341 driver + venv + pip deps (≈20–30 min first time)
+bash scripts/setup.sh
 
-- **Streaming pipeline** — TTS starts as soon as the first sentence leaves the LLM
-- **Cached TTS model** — Piper voice loaded once, reused for every utterance
-- **Direct audio piping** — PCM streamed to aplay via stdin (no temp files)
-- **GPU offload** — LLM runs on CUDA (~10-15 tok/s vs ~2 tok/s on CPU)
-- **Push-to-talk + continuous mode** — spacebar PTT by default, toggle in GUI
-- **Singlish toggle** — Switch to Singlish mode via GUI
-- **STT warmup** — dummy transcription at startup eliminates cold-start lag
-- **Time-based sentence flushing** — speaks partial output if LLM is slow
-- **100% offline** — no internet or API calls needed after setup
+source companion_env/bin/activate
+
+# 2. Download every model (LLM, VLM, STT, TTS, vision, EOU, speaker-ID)
+python3 scripts/download_models.py
+
+# 3. Flash the ESP32 face firmware (with the screen plugged in)
+bash scripts/flash_firmware.sh
+
+# 4. Run
+python3 main.py
+```
+
+Press **SPACE** to talk.
+
+## Everyday commands
+
+```bash
+python3 -m tests.cli env                 # sanity check
+python3 -m tests.cli audio               # live mic / DOA / VAD in the terminal
+python3 -m tests.cli stt                 # 5 s record + transcribe
+python3 -m tests.cli llm "hello"         # one-shot LLM
+python3 -m tests.cli vlm "what do you see?"
+python3 -m tests.cli tts "hi there"      # synthesise + play
+python3 -m tests.cli vision --seconds 10 # emotion pipeline benchmark
+python3 -m tests.cli face happy          # drive the face to a preset
+python3 -m tests.cli speaker enrol --name Yogee
+python3 -m tests.cli mem search "interview"
+python3 -m tests.cli tools "set a timer for 5 minutes"
+python3 -m tests.cli all                 # run every subsystem sanity check
+
+python3 -m tests.debug_gui               # one window, 5 tabs — Audio/LLM/TTS/Vision/Face
+```
+
+## Swapping models
+
+Every model swap is one line in [config.yaml](config.yaml):
+
+```yaml
+llm:
+  model: gemma-4-e2b      # or gemma-4-e4b
+stt:
+  backend: parakeet       # or whisper
+tts:
+  engine: kokoro          # or piper
+  voice: af_heart         # af_bella, af_sarah, af_nicole, af_sky, …
+display:
+  backend: pygame         # or esp32_serial
+```
+
+Restart the app; that's it.
+
+## Project layout
+
+```
+robotic-companion/
+├── companion/
+│   ├── core/          config.py + logging.py + events.py + proactive.py
+│   ├── audio/         io + vad + stt (Parakeet+Whisper) + tts (Kokoro+Piper)
+│   │                  + eou + wake_word + speaker_id + respeaker
+│   ├── vision/        camera + face_detector (YuNet) + emotion_classifier
+│   │                  + pipeline + vlm (Moondream) + scene_watcher
+│   ├── llm/           engine (Gemma 4) + prompt + memory + function_gemma + router
+│   ├── tools/         registry + timer + volume + remind_me + stopwatch + time_weather
+│   ├── conversation/  manager — orchestrates the pipeline
+│   ├── display/       renderer + face-state + lip-sync + pygame & esp32_serial backends
+│   └── ui/            theme + shared widgets + main_window
+├── tests/             cli.py (terminal) + debug_gui.py (tabbed)
+├── scripts/           setup.sh + download_models.py + flash_firmware.sh + verify.py
+├── firmware/companion_face/  ESP32 Arduino/PlatformIO project
+├── models/            (downloaded)
+├── data/chroma/       (Mem0 vector DB)
+├── logs/              (JSONL per day)
+├── config.yaml        all knobs
+├── main.py
+└── README.md
+```
+
+## Config reference
+
+Every subsystem reads its own dataclass section of [config.yaml](config.yaml).
+See [companion/core/config.py](companion/core/config.py) for the full schema
+— field defaults live there.
+
+## Firmware
+
+The touchscreen renders the face locally so the serial link only carries
+small state commands (≈30 Hz). Protocol + pinout:
+[firmware/companion_face/README.md](firmware/companion_face/README.md).
+
+Flash with `bash scripts/flash_firmware.sh`.
+
+## Architecture (one conversation turn)
+
+```
+Mic ──▶ VAD ──▶ (on speech end) ──▶ STT ───────▶ EOU ─▶ Router ─┐
+                                                                 │
+      ┌─── chat ◀──── Memory + Emotion + Scene hint injection ◀──┤
+      │                                                           │
+      ├─── VQA  ◀──── Moondream(current frame, question) ◀────────┤
+      │                                                           │
+      └─── tool ◀──── FunctionGemma(user turn) ──▶ Tool.invoke ◀──┘
+      │
+      ▼                         (tokens stream as they arrive)
+   LLM ──tokens──▶ pysbd sentence splitter ──▶ TTS ──▶ Speaker
+                                                ▼
+                                              Rhubarb → visemes
+                                                ▼
+                                     Display (face mouth animates)
+                                                ▼
+                                              ESP32 screen / HDMI
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `/dev/ttyUSB0` missing | Re-run `scripts/setup.sh` — rebuilds WCH CH341 driver. |
+| Kokoro fails on startup | Check `models/kokoro/` and `pip install kokoro-onnx`. The loud fallback falls back to Piper. |
+| OOM on Gemma 4 E4B | `llm.model: gemma-4-e2b` in config.yaml, or boot Jetson into multi-user target. |
+| No face on ESP32 | `display.backend: pygame` to confirm face logic on HDMI; then check `scripts/flash_firmware.sh` output. |
+| Interruption ignored | Check `conversation.allow_interruption: true`. |
+| ReSpeaker silent | Unplug / replug USB; ensure udev rule at `/etc/udev/rules.d/60-respeaker.rules`. |
+
+## Credits
+
+Built on top of llama.cpp, kokoro-onnx, Piper, Silero VAD, openWakeWord,
+HSEmotion, YuNet, Moondream 2, NVIDIA Parakeet, NeMo TitaNet, LiveKit's
+EOU, Mem0, Chroma, TFT_eSPI, and Rhubarb Lip Sync.

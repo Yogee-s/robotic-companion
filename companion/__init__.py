@@ -1,3 +1,3 @@
-"""Jetson Orin Nano AI Companion — Core Package."""
+"""Robotic Companion — offline, multimodal AI companion for Jetson Orin Nano."""
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"

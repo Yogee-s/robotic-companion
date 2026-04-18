@@ -1,73 +1,171 @@
-# ===========================================================
-# Jetson Orin Nano AI Companion — Configuration
-# ===========================================================
+# ═══════════════════════════════════════════════════════════════════════════
+#  Robotic Companion — Central Configuration
+#
+#  Loaded once at startup via companion.core.config.load_config into
+#  AppConfig dataclass. Every module reads its own section via the config
+#  object — no raw yaml access elsewhere.
+#
+#  To swap a major component (LLM, STT backend, display backend, voice),
+#  change exactly one key here.
+# ═══════════════════════════════════════════════════════════════════════════
 
-# --- LLM (Large Language Model) ---
+app:
+  name: Companion
+  data_dir: data
+  log_dir: logs
+  log_level: INFO
+  singlish: false
+  proactive_enabled: false                    # opt-in: robot initiates conversation
+
+hardware:
+  mic_name_hint: ReSpeaker
+  speaker_name_hint: ""
+  camera_sensor_id: 0
+  screen_serial_port: /dev/ttyCH341USB0
+  screen_serial_baud: 115200
+
+# ── LLM ─────────────────────────────────────────────────────────────────────
 llm:
-  model_path: "models/llama-3.2-3b-instruct-q4_k_m.gguf"
-  n_gpu_layers: -1            # -1 = offload ALL layers to GPU
+  model: gemma-4-e2b                          # one-line switch: e2b (default) | e4b
+  model_paths:
+    gemma-4-e2b: models/gemma-4-e2b-it-q4_k_m.gguf
+    gemma-4-e4b: models/gemma-4-e4b-it-q4_k_m.gguf
+  n_gpu_layers: -1                            # -1 = offload all layers to GPU
   context_length: 2048
-  max_tokens: 80              # Keep responses short for voice
+  max_tokens: 120
   temperature: 0.7
   top_p: 0.9
   repeat_penalty: 1.1
   system_prompt: >
-    You are a friendly, upbeat AI companion. You are cheerful and enthusiastic.
-    Keep every response to 1-2 short sentences. Always finish with a complete sentence.
-    Never leave a thought unfinished. Be warm and fun.
+    You are a warm, curious AI companion. You see the user via camera and hear
+    them via microphone. Keep replies to 1-3 short sentences. Finish every
+    sentence. Acknowledge the user's mood subtly, not overtly.
 
-# --- Speech-to-Text (faster-whisper, CUDA) ---
+# ── Vision-Language Model (scene awareness + "what is this?" answers) ───────
+vlm:
+  enabled: true
+  model_path: models/moondream2-q4.gguf
+  mmproj_path: models/moondream2-mmproj-f16.gguf
+  scene_watch_hz: 1.0                         # background scene caption cadence
+  max_tokens: 80
+
+# ── FunctionGemma (tool-call router, 270M sidecar) ──────────────────────────
+function_gemma:
+  enabled: true
+  model_path: models/function-gemma-270m-q4.gguf
+  confidence_threshold: 0.55
+
+# ── Persistent memory (Mem0 + local Chroma) ─────────────────────────────────
+memory:
+  enabled: true
+  chroma_dir: data/chroma
+  top_k: 3
+  max_entries_per_speaker: 500
+
+# ── Speech-to-Text ──────────────────────────────────────────────────────────
 stt:
-  model_size: "base.en"       # base.en on CUDA (small.en too large for GPU with LLM)
-  device: "cuda"              # CUDA for GPU acceleration
-  compute_type: "int8"        # int8 is fastest on Jetson
-  beam_size: 5                # Higher beam = more accurate (1=fastest, 5=default)
-  language: "en"              # Skip language detection
+  backend: parakeet                           # parakeet | whisper
+  parakeet_model_dir: models/parakeet-tdt-0.6b-v3
+  whisper_model_size: base.en
+  whisper_compute_type: int8
+  streaming: true                             # Parakeet partial transcripts for LLM prefill
+  beam_size: 5
+  language: en
 
-# --- Text-to-Speech ---
+# ── Text-to-Speech ──────────────────────────────────────────────────────────
 tts:
-  engine: "piper"               # piper (fast, default) | kokoro (natural, slower)
-  voice: "af_heart"             # Kokoro voice: af_heart, af_bella, af_sarah, af_nicole, af_sky
-  speaking_rate: 1.1            # Speed multiplier (>1 = faster)
-  lang: "en-us"                 # en-us | en-gb
-  output_sample_rate: 22050
-  piper_model: "en_US-hfc_female-medium"  # Piper voice model
+  engine: kokoro                              # kokoro (natural) | piper (fast)
+  voice: af_heart                             # Kokoro voices: af_heart, af_bella, af_sarah, af_nicole, af_sky
+  speaking_rate: 1.1
+  lang: en-us
+  output_sample_rate: 24000
+  piper_model: en_US-hfc_female-medium
+  loud_fallback: true                         # log ERROR if primary engine fails to a fallback
 
-# --- Voice Activity Detection (Silero VAD) ---
+# ── Voice Activity Detection ────────────────────────────────────────────────
 vad:
   threshold: 0.5
-  silence_duration_ms: 500    # Faster end-of-speech detection
+  silence_duration_ms: 500
   min_speech_duration_ms: 250
   speech_pad_ms: 30
 
-# --- Audio Hardware ---
+# ── Semantic End-of-Utterance (LiveKit EOU transformer) ─────────────────────
+eou:
+  enabled: true
+  model_path: models/eou/livekit-eou-v0.4.1-intl.onnx
+  extra_wait_ms: 600                          # if EOU says "not done", wait this long more
+  confidence_threshold: 0.55
+
+# ── Wake word ("Hey Buddy") ─────────────────────────────────────────────────
+wake_word:
+  enabled: false                              # enable via config; conversation.mode must be wake_word
+  phrase: "hey buddy"
+  model_path: models/wake_word/hey_buddy.tflite
+  sensitivity: 0.5
+
+# ── Speaker identification (TitaNet-L) ──────────────────────────────────────
+speaker_id:
+  enabled: true
+  model_path: models/speaker_id/titanet-l.onnx
+  speakers_file: models/speakers.json
+  match_threshold: 0.65                       # cosine similarity
+
+# ── Audio I/O hardware ──────────────────────────────────────────────────────
 audio:
   sample_rate: 16000
   channels: 1
-  chunk_size: 512             # 32ms chunks at 16kHz (Silero-compatible)
-  input_device_name: "ReSpeaker"
+  chunk_size: 512                             # 32 ms at 16 kHz (Silero-compatible)
+  input_device_name: ReSpeaker
   output_device_name: ""
 
-# --- ReSpeaker Mic Array ---
+# ── ReSpeaker mic array (DOA + LEDs) ────────────────────────────────────────
 respeaker:
   vendor_id: 0x2886
   product_id: 0x0018
   led_brightness: 20
   doa_enabled: true
 
-# --- Conversation ---
-conversation:
-  mode: "ptt"                 # ptt (push-to-talk) | continuous
-  max_history: 6              # Exchanges to keep (less = faster LLM)
-  verbosity: "normal"         # brief | normal | detailed
-  log_conversations: true
-  log_directory: "logs"
+# ── Vision (camera + face + emotion) ────────────────────────────────────────
+vision:
+  enabled: true
+  sensor_id: 0
+  width: 1280
+  height: 720
+  fps: 30
+  flip_method: 0
+  use_csi: true
+  detect_every_n_frames: 2
+  face_model_path: models/vision/face_detection_yunet_2023mar.onnx
+  emotion_model_path: models/vision/enet_b0_8_best_afew.onnx
+  face_score_threshold: 0.6
+  smoothing: 0.7
+  staleness_fade_seconds: 3.0
 
-# --- GUI ---
+# ── Display (touchscreen face + tap menu) ───────────────────────────────────
+display:
+  backend: esp32_serial                       # pygame (HDMI/dev) | esp32_serial (touchscreen)
+  width: 320                                  # landscape — matches firmware rotation=1
+  height: 240
+  fullscreen: false
+  serial_port: /dev/ttyCH341USB0
+  serial_baud: 115200
+  auto_dismiss_seconds: 4.0
+
+# ── Conversation behaviour ──────────────────────────────────────────────────
+conversation:
+  mode: ptt                                   # ptt | continuous | wake_word
+  max_history: 6                              # exchanges to keep in context
+  verbosity: normal                           # brief | normal | detailed
+  log_conversations: true
+  log_directory: logs
+  allow_interruption: true
+
+# ── Desktop GUI ─────────────────────────────────────────────────────────────
 gui:
-  window_width: 1024
-  window_height: 768
-  font_size: 14
+  window_width: 1280
+  window_height: 820
+  font_size: 13
+  theme: catppuccin_mocha
   show_system_monitor: true
   show_doa_visualization: true
   doa_update_interval_ms: 100
