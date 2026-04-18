@@ -110,6 +110,47 @@ class EmotionPipeline:
         with self._lock:
             return self._state
 
+    # -------------------- face selection --------------------
+    @staticmethod
+    def _pick_face(
+        faces: List[Tuple[int, int, int, int, float]],
+        last_bbox: Optional[Tuple[int, int, int, int]],
+    ) -> Tuple[int, int, int, int]:
+        """Pick the face to track this frame.
+
+        If we had a face last frame, prefer the one whose centre is closest
+        to the previous bbox centre AND whose size is at least 40% of the
+        previous size (rules out random background detections grabbing the
+        track). Otherwise pick by a score(confidence) × size(area) product,
+        so we don't hand the track to a low-confidence giant bbox.
+        """
+        if last_bbox is not None:
+            lx, ly, lw, lh = last_bbox
+            lcx = lx + lw / 2.0
+            lcy = ly + lh / 2.0
+            l_area = max(1, lw * lh)
+            best = None
+            best_d = None
+            for (x, y, w, h, _score) in faces:
+                if w * h < 0.4 * l_area and l_area > 1:
+                    continue
+                cx = x + w / 2.0
+                cy = y + h / 2.0
+                d = (cx - lcx) ** 2 + (cy - lcy) ** 2
+                # Also skip jumps that are too large to be the same person
+                if d > (max(lw, lh) * 3) ** 2:
+                    continue
+                if best_d is None or d < best_d:
+                    best_d = d
+                    best = (x, y, w, h)
+            if best is not None:
+                return best
+        # First frame (or last track lost): score × area so a confident
+        # mid-size face beats a low-confidence massive bbox.
+        faces_ranked = sorted(faces, key=lambda f: f[4] * f[2] * f[3], reverse=True)
+        x, y, w, h, _ = faces_ranked[0]
+        return (x, y, w, h)
+
     # -------------------- main loop --------------------
     def _loop(self) -> None:
         frame_idx = 0
@@ -123,12 +164,15 @@ class EmotionPipeline:
 
             # Re-detect every N frames; reuse last bbox in between.
             if frame_idx % self.detect_every_n == 0:
-                faces = self.face_detector.detect(frame)
+                try:
+                    faces = self.face_detector.detect(frame)
+                except Exception as exc:
+                    # Don't let a detector blow up the pipeline thread —
+                    # log once, treat the frame as faceless, keep going.
+                    logger.error(f"face_detector.detect crashed: {exc!r}")
+                    faces = []
                 if faces:
-                    # Pick the largest face
-                    faces.sort(key=lambda f: f[2] * f[3], reverse=True)
-                    x, y, w, h, _ = faces[0]
-                    self._last_bbox = (x, y, w, h)
+                    self._last_bbox = self._pick_face(faces, self._last_bbox)
                 else:
                     self._last_bbox = None
             frame_idx += 1

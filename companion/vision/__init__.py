@@ -7,6 +7,11 @@ from companion.vision.emotion_classifier import (
     EmotionClassifier,
 )
 from companion.vision.face_detector import FaceDetector
+from companion.vision.face_tracker import (
+    FaceTracker,
+    TrackerSnapshot,
+    render_annotated_frame,
+)
 from companion.vision.pipeline import EmotionPipeline, EmotionState
 
 __all__ = [
@@ -17,4 +22,7 @@ __all__ = [
     "EMOTION_VA",
     "EmotionPipeline",
     "EmotionState",
+    "FaceTracker",
+    "TrackerSnapshot",
+    "render_annotated_frame",
 ]

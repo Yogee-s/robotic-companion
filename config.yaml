@@ -132,12 +132,12 @@ vision:
   width: 1280
   height: 720
   fps: 30
-  flip_method: 0
+  flip_method: 2                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
   use_csi: true
   detect_every_n_frames: 2
   face_model_path: models/vision/face_detection_yunet_2023mar.onnx
   emotion_model_path: models/vision/enet_b0_8_best_afew.onnx
-  face_score_threshold: 0.6
+  face_score_threshold: 0.75                  # raise to reject weak detections (bg walls, chairs, etc)
   smoothing: 0.7
   staleness_fade_seconds: 3.0
 
