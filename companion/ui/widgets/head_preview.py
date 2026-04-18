@@ -20,9 +20,13 @@ log = logging.getLogger(__name__)
 
 
 class HeadPreviewWidget(QWidget):
-    """Live head-pose visualization. Emits nothing; purely a display."""
+    """Live head-pose visualization. Right-click-drag in the 3D view emits
+    head_drag_delta (pan_delta_deg, tilt_delta_deg) — caller decides what to
+    do with it (typically forward to set_head_pose). Left-click drag still
+    rotates the camera as usual."""
 
-    pose_changed = pyqtSignal(float, float)   # pan_deg, tilt_deg (forwarded for hooks)
+    pose_changed = pyqtSignal(float, float)        # pan_deg, tilt_deg (forwarded for hooks)
+    head_drag_delta = pyqtSignal(float, float)     # pan_delta, tilt_delta (right-drag)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -65,7 +69,40 @@ class HeadPreviewWidget(QWidget):
             log.info(f"3D preview unavailable ({e}); falling back to 2D")
             return None
         try:
-            view = gl.GLViewWidget()
+            # Subclass that re-routes right-button drag into head_drag_delta
+            # emissions on the parent widget. Left-button stays the default
+            # GLViewWidget behaviour (camera rotation).
+            owner = self
+            class _DragView(gl.GLViewWidget):
+                def __init__(self):
+                    super().__init__()
+                    self._last_pos = None
+                def mousePressEvent(self, ev):
+                    if ev.button() == Qt.RightButton:
+                        self._last_pos = ev.pos()
+                        ev.accept()
+                    else:
+                        super().mousePressEvent(ev)
+                def mouseMoveEvent(self, ev):
+                    if (ev.buttons() & Qt.RightButton) and self._last_pos is not None:
+                        dx = ev.pos().x() - self._last_pos.x()
+                        dy = ev.pos().y() - self._last_pos.y()
+                        self._last_pos = ev.pos()
+                        # 0.3°/pixel — comfortable drag sensitivity.
+                        # Drag-left → pan negative (head left), drag-up → tilt
+                        # positive (head up). Negate dx so direction follows
+                        # the cursor naturally instead of inverting.
+                        owner.head_drag_delta.emit(-dx * 0.3, -dy * 0.3)
+                        ev.accept()
+                    else:
+                        super().mouseMoveEvent(ev)
+                def mouseReleaseEvent(self, ev):
+                    if ev.button() == Qt.RightButton:
+                        self._last_pos = None
+                        ev.accept()
+                    else:
+                        super().mouseReleaseEvent(ev)
+            view = _DragView()
             view.opts["distance"] = 6.0
             view.opts["elevation"] = 15
             view.opts["azimuth"] = 45

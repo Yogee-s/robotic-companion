@@ -175,19 +175,19 @@ motor:
   right_servo_id: 2
 
   # Calibration outputs ─────────────────────────────────────────────────────
-  left_zero_tick: 2048                        # encoder tick when head is centered + level
-  right_zero_tick: 2048
-  left_direction: 1                           # ±1, per-motor sign (set by direction test)
+  left_zero_tick: 2197  # encoder tick when head is centered + level
+  right_zero_tick: 2212
+  left_direction: 1  # ±1, per-motor sign (set by direction test)
   right_direction: -1
   gear_ratio_nominal: 2.0                     # CAD: crown_teeth / pinion_teeth (40/20 = 2.0)
-  gear_ratio_measured: 2.0                    # empirically measured during calibration
-  backlash_deg: 1.0
-  invert_pan: false                           # axis-level sign (set by combined-sanity step)
+  gear_ratio_measured: 2  # empirically measured during calibration
+  backlash_deg: 1
+  invert_pan: false  # axis-level sign (set by combined-sanity step)
   invert_tilt: false
 
   # Soft limits, degrees — head must return to center, no 360° pan
-  pan_limits_deg: [-90.0, 90.0]
-  tilt_limits_deg: [-30.0, 30.0]
+  pan_limits_deg: [-39.001, 39.001]
+  tilt_limits_deg: [-10.041, 12.0186]
 
   # Motion + safety ─────────────────────────────────────────────────────────
   max_speed_ticks_per_s: 2000

@@ -39,6 +39,7 @@ _REG_LOCK = 55                # RAM, 1 byte. 0 = unlocked, 1 = locked (default).
 _REG_TORQUE_ENABLE = 40
 _REG_GOAL_ACCEL = 41
 _REG_GOAL_POSITION = 42
+_REG_GOAL_TIME = 44       # Move-completion-time mode. 0 = use GOAL_SPEED.
 _REG_GOAL_SPEED = 46
 _REG_TORQUE_LIMIT = 48
 _REG_PRESENT_POSITION = 56
@@ -363,6 +364,21 @@ class ST3215Bus:
             ),
         )
 
+    def set_goal_time(self, servo_id: int, time_units: int) -> None:
+        """Sets GOAL_TIME register. When non-zero, the servo completes its move
+        in approximately this many time units (typically ~1 unit ≈ 1 ms on
+        STS3215, but firmware varies). With BOTH motors set to the same value,
+        a coordinated move (pan, tilt, or combo) finishes simultaneously on
+        both — preventing the mid-motion cross-coupling where one motor
+        arrives early and the head transiently tilts while the other catches
+        up. Set to 0 to disable time-mode and revert to GOAL_SPEED."""
+        self._write_with_retry(
+            "set_goal_time",
+            lambda: self._packet.write2ByteTxRx(
+                self._port, servo_id, _REG_GOAL_TIME, max(0, min(65535, int(time_units)))
+            ),
+        )
+
     def set_goal_acceleration(self, servo_id: int, accel: int) -> None:
         self._write_with_retry(
             "set_goal_acceleration",
@@ -523,6 +539,9 @@ class SimulatedBus:
     def set_goal_speed(self, servo_id: int, speed: int) -> None:
         with self._lock:
             self._servos[servo_id].speed = float(max(1, speed))
+
+    def set_goal_time(self, servo_id: int, time_units: int) -> None:
+        pass                                                   # no-op in sim
 
     def set_goal_acceleration(self, servo_id: int, accel: int) -> None:
         pass                                                   # first-order sim, no accel model

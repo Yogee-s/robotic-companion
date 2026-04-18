@@ -24,9 +24,9 @@ from typing import Optional
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QHBoxLayout,
-    QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton, QSlider,
-    QSpinBox, QVBoxLayout, QWidget, QWizard, QWizardPage,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
+    QSizePolicy, QSlider, QSpinBox, QVBoxLayout, QWidget, QWizard, QWizardPage,
 )
 
 from companion.core.config import MotorConfig
@@ -80,6 +80,12 @@ class CalibrationWizard(QWizard):
         self.resize(1000, 700)
 
         self.state = WizardState(cfg=copy.deepcopy(cfg), yaml_path=yaml_path)
+        # Calibration involves intentionally driving toward mechanical limits
+        # and doing test sweeps that can exceed the stall-detect 1.5 s window.
+        # Disable stall detection wizard-wide so the controller doesn't
+        # silently latch a "hold at current" mid-move. The original config
+        # value will be loaded back from disk when calibration ends.
+        self.state.cfg.stall_detect = False
 
         self.setPage(self.PAGE_CONNECT, ConnectPage(self.state))
         self.setPage(self.PAGE_DIRECTION, DirectionTestPage(self.state))
@@ -514,6 +520,17 @@ class LimitDiscoveryPage(QWizardPage):
 
         controls = QVBoxLayout()
 
+        # Show whatever limits were already saved in config.yaml from a
+        # previous calibration — useful so the user knows what they're
+        # overriding (or can choose to keep by re-marking the same way).
+        self.saved_label = QLabel("(saved limits will appear here)")
+        self.saved_label.setWordWrap(True)
+        font = self.saved_label.font()
+        font.setItalic(True)
+        self.saved_label.setFont(font)
+        controls.addWidget(self.saved_label)
+
+        controls.addSpacing(4)
         self.current_label = QLabel("At pose (0.0°, 0.0°)")
         controls.addWidget(self.current_label)
 
@@ -526,36 +543,57 @@ class LimitDiscoveryPage(QWizardPage):
         step_row.addWidget(self.step_spin)
         controls.addLayout(step_row)
 
-        jog_grid = QFormLayout()
+        jog_grid = QGridLayout()
         self.pan_jog_left = QPushButton("Jog PAN −")
         self.pan_jog_right = QPushButton("Jog PAN +")
         self.tilt_jog_up = QPushButton("Jog TILT +")
         self.tilt_jog_down = QPushButton("Jog TILT −")
+        self.center_btn = QPushButton("⌂ Center (0°, 0°)")
+        for btn in (self.pan_jog_left, self.pan_jog_right,
+                    self.tilt_jog_down, self.tilt_jog_up, self.center_btn):
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.pan_jog_left.clicked.connect(lambda: self._jog(-1, 0))
         self.pan_jog_right.clicked.connect(lambda: self._jog(+1, 0))
         self.tilt_jog_up.clicked.connect(lambda: self._jog(0, +1))
         self.tilt_jog_down.clicked.connect(lambda: self._jog(0, -1))
-        jog_grid.addRow(self.pan_jog_left, self.pan_jog_right)
-        jog_grid.addRow(self.tilt_jog_down, self.tilt_jog_up)
+        self.center_btn.clicked.connect(self._center)
+        jog_grid.addWidget(self.pan_jog_left, 0, 0)
+        jog_grid.addWidget(self.pan_jog_right, 0, 1)
+        jog_grid.addWidget(self.tilt_jog_down, 1, 0)
+        jog_grid.addWidget(self.tilt_jog_up, 1, 1)
+        jog_grid.addWidget(self.center_btn, 2, 0, 1, 2)   # span both columns
         controls.addLayout(jog_grid)
 
         controls.addSpacing(6)
 
         self.status_labels: dict[str, QLabel] = {}
         for key, label in [
-            ("pan_min", "Pan MIN (left):"),
-            ("pan_max", "Pan MAX (right):"),
-            ("tilt_min", "Tilt MIN (down):"),
-            ("tilt_max", "Tilt MAX (up):"),
+            ("pan_min", "Pan MIN (left)"),
+            ("pan_max", "Pan MAX (right)"),
+            ("tilt_min", "Tilt MIN (down)"),
+            ("tilt_max", "Tilt MAX (up)"),
         ]:
+            block = QVBoxLayout()
             row = QHBoxLayout()
-            mark_btn = QPushButton(f"Mark {label.strip(':')}")
+            mark_btn = QPushButton(f"Mark {label}")
             mark_btn.clicked.connect(lambda _, k=key: self._mark(k))
-            row.addWidget(mark_btn)
+            mark_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            row.addWidget(mark_btn, stretch=2)
+            test_btn = QPushButton("Test ▶")
+            test_btn.setEnabled(False)
+            test_btn.clicked.connect(lambda _, k=key: self._test_limit(k))
+            test_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            row.addWidget(test_btn, stretch=1)
+            block.addLayout(row)
             lbl = QLabel("—")
-            row.addWidget(lbl, stretch=1)
+            lbl.setWordWrap(True)
+            font = lbl.font()
+            font.setFamily("Monospace")
+            lbl.setFont(font)
+            block.addWidget(lbl)
             self.status_labels[key] = lbl
-            controls.addLayout(row)
+            setattr(self, f"_test_btn_{key}", test_btn)
+            controls.addLayout(block)
 
         controls.addSpacing(8)
         self.live_status = QLabel("(live status — appears once moving)")
@@ -586,17 +624,71 @@ class LimitDiscoveryPage(QWizardPage):
         ctrl = self.state.controller
         if ctrl is None:
             return
+        # Display the previously-saved limits so the user can decide whether
+        # to keep them (just press Next or Test) or change them (re-jog and
+        # re-mark). They were loaded from config.yaml at wizard startup.
+        self._saved_pan_limits = list(self.state.cfg.pan_limits_deg)
+        self._saved_tilt_limits = list(self.state.cfg.tilt_limits_deg)
+        self.saved_label.setText(
+            f"Saved limits in config.yaml:\n"
+            f"  pan  = {self._saved_pan_limits[0]:+.1f}°  ..  "
+            f"{self._saved_pan_limits[1]:+.1f}°\n"
+            f"  tilt = {self._saved_tilt_limits[0]:+.1f}°  ..  "
+            f"{self._saved_tilt_limits[1]:+.1f}°"
+        )
+        # Pre-fill the marks from the saved limit poses, BEFORE we widen the
+        # runtime clamps — kinematics uses left/right_zero_tick + gear_ratio
+        # to compute the corresponding raw tick values for each marked corner.
+        # This means: open step 5, see saved values populated, can immediately
+        # Test each limit or just hit Next. Re-jogging is optional.
+        from companion.motor.kinematics import head_pose_to_ticks
+        try:
+            cfg = self.state.cfg
+            corners = {
+                "pan_min": (self._saved_pan_limits[0], 0.0),
+                "pan_max": (self._saved_pan_limits[1], 0.0),
+                "tilt_min": (0.0, self._saved_tilt_limits[0]),
+                "tilt_max": (0.0, self._saved_tilt_limits[1]),
+            }
+            self._marks.clear()
+            s = self.state
+            for key, (pan, tilt) in corners.items():
+                lt, rt = head_pose_to_ticks(pan, tilt, cfg)
+                self._marks[key] = (lt, rt, pan, tilt)
+                if key == "pan_min":
+                    s.pan_min_raw_l, s.pan_min_raw_r = lt, rt
+                elif key == "pan_max":
+                    s.pan_max_raw_l, s.pan_max_raw_r = lt, rt
+                elif key == "tilt_min":
+                    s.tilt_min_raw_l, s.tilt_min_raw_r = lt, rt
+                elif key == "tilt_max":
+                    s.tilt_max_raw_l, s.tilt_max_raw_r = lt, rt
+                self.status_labels[key].setText(
+                    f"L={lt} R={rt}   (pose {pan:+.1f}°, {tilt:+.1f}°)   [from saved]"
+                )
+                getattr(self, f"_test_btn_{key}").setEnabled(True)
+        except Exception as e:
+            log.warning(f"prefill saved limits: {e}")
+            for key in ("pan_min", "pan_max", "tilt_min", "tilt_max"):
+                getattr(self, f"_test_btn_{key}").setEnabled(False)
+                self.status_labels[key].setText("—")
+
+        # Now widen the runtime soft limits so the user can re-jog past the
+        # saved values if they want to discover wider mechanical limits.
+        # Step 6 recomputes from whatever marks are in state when we leave.
+        self.state.cfg.pan_limits_deg = [-180.0, 180.0]
+        self.state.cfg.tilt_limits_deg = [-90.0, 90.0]
         try:
             ctrl.enable_torque(True)
-            # Lower speed for safer limit discovery
             ctrl.bus.set_goal_speed(self.state.cfg.left_servo_id, 500)
             ctrl.bus.set_goal_speed(self.state.cfg.right_servo_id, 500)
         except Exception as e:
             log.warning(f"limit-discovery init: {e}")
         self._pan = 0.0
         self._tilt = 0.0
-        self._marks.clear()
         self._timer.start()
+        # Marks are pre-populated, so Next is enabled immediately
+        self.completeChanged.emit()
 
     def cleanupPage(self) -> None:
         self._timer.stop()
@@ -625,7 +717,7 @@ class LimitDiscoveryPage(QWizardPage):
         except Exception as e:
             log.warning(f"mark read: {e}")
             return
-        self._marks[key] = (lt, rt)
+        self._marks[key] = (lt, rt, self._pan, self._tilt)
         s = self.state
         if key == "pan_min":
             s.pan_min_raw_l, s.pan_min_raw_r = lt, rt
@@ -638,7 +730,56 @@ class LimitDiscoveryPage(QWizardPage):
         self.status_labels[key].setText(
             f"L={lt} R={rt}   (pose {self._pan:+.1f}°, {self._tilt:+.1f}°)"
         )
+        # Enable the corresponding Test button now that a limit is captured
+        getattr(self, f"_test_btn_{key}").setEnabled(True)
         self.completeChanged.emit()
+
+    def _center(self) -> None:
+        """Drive both axes back to (0°, 0°) — the rough-zero captured in step 3."""
+        self._pan = 0.0
+        self._tilt = 0.0
+        self.current_label.setText(f"At pose ({self._pan:+.1f}°, {self._tilt:+.1f}°)")
+        ctrl = self.state.controller
+        if ctrl is not None:
+            try:
+                ctrl.set_head_pose(0.0, 0.0)
+            except Exception as e:
+                log.warning(f"center: {e}")
+
+    def _test_limit(self, key: str) -> None:
+        """Drive the head back to a previously-marked limit so you can verify
+        it visually. Bumps speed up to 2000 ticks/s for the move (the 500 used
+        for jogging is too slow — large moves time out the 1.5 s stall window
+        mid-flight, which is why a single Test press would stop halfway).
+        Restores the slower jog speed when done."""
+        if key not in self._marks:
+            return
+        _lt, _rt, pan, tilt = self._marks[key]
+        self._pan = pan
+        self._tilt = tilt
+        self.current_label.setText(f"At pose ({self._pan:+.1f}°, {self._tilt:+.1f}°)")
+        ctrl = self.state.controller
+        if ctrl is None:
+            return
+        try:
+            ctrl.bus.set_goal_speed(self.state.cfg.left_servo_id, 2000)
+            ctrl.bus.set_goal_speed(self.state.cfg.right_servo_id, 2000)
+            ctrl.set_head_pose(pan, tilt)
+        except Exception as e:
+            log.warning(f"test limit {key}: {e}")
+            return
+        # Drop speed back to jog default once the move has had time to start
+        QTimer.singleShot(2500, self._restore_jog_speed)
+
+    def _restore_jog_speed(self) -> None:
+        ctrl = self.state.controller
+        if ctrl is None:
+            return
+        try:
+            ctrl.bus.set_goal_speed(self.state.cfg.left_servo_id, 500)
+            ctrl.bus.set_goal_speed(self.state.cfg.right_servo_id, 500)
+        except Exception as e:
+            log.warning(f"restore jog speed: {e}")
 
     def _refresh_preview(self) -> None:
         ctrl = self.state.controller
@@ -647,6 +788,34 @@ class LimitDiscoveryPage(QWizardPage):
         self.preview.set_pose(
             ctrl.state.pan_deg, ctrl.state.tilt_deg,
             ctrl.state.target_pan_deg, ctrl.state.target_tilt_deg,
+        )
+        # Live diagnostic: shows commanded vs actual ticks plus stall state.
+        # Helps distinguish "head hit a real mechanical stop" from
+        # "encoder ran out of range" from "stall detector fired prematurely".
+        cfg = self.state.cfg
+        l_goal = ctrl.state.left_goal_tick
+        r_goal = ctrl.state.right_goal_tick
+        l_act = ctrl.state.left.position_tick if ctrl.state.left else 0
+        r_act = ctrl.state.right.position_tick if ctrl.state.right else 0
+        l_err = l_act - l_goal
+        r_err = r_act - r_goal
+        l_at_min = l_act <= 5
+        l_at_max = l_act >= 4090
+        r_at_min = r_act <= 5
+        r_at_max = r_act >= 4090
+        flags = []
+        if ctrl.state.stalled:
+            flags.append("STALLED")
+        if l_at_min:  flags.append("L@tick0")
+        if l_at_max:  flags.append("L@tick4095")
+        if r_at_min:  flags.append("R@tick0")
+        if r_at_max:  flags.append("R@tick4095")
+        flag_str = "  ⚠ " + " ".join(flags) if flags else ""
+        self.live_status.setText(
+            f"actual: pan={ctrl.state.pan_deg:+6.1f}° tilt={ctrl.state.tilt_deg:+6.1f}°\n"
+            f"L: tick={l_act:4d} (goal {l_goal:4d}, err {l_err:+5d})\n"
+            f"R: tick={r_act:4d} (goal {r_goal:4d}, err {r_err:+5d})"
+            f"{flag_str}"
         )
 
     def isComplete(self) -> bool:
@@ -952,7 +1121,12 @@ class VerifyPage(QWizardPage):
         self.pan_slider.setMaximum(int(state.cfg.pan_limits_deg[1] * 10))
         self.pan_slider.setValue(0)
         self.pan_value = QLabel("Pan: 0.0°")
+        # Update the label instantly during drag, but throttle motor commands
+        # via _send_timer so the servos aren't thrashed by every pixel of
+        # drag (each new goal pre-empts the previous and creates the
+        # cross-coupling tilt-jitter you saw).
         self.pan_slider.valueChanged.connect(self._on_changed)
+        self.pan_slider.sliderReleased.connect(self._send_now)
         controls.addWidget(self.pan_value)
         controls.addWidget(self.pan_slider)
 
@@ -962,6 +1136,7 @@ class VerifyPage(QWizardPage):
         self.tilt_slider.setValue(0)
         self.tilt_value = QLabel("Tilt: 0.0°")
         self.tilt_slider.valueChanged.connect(self._on_changed)
+        self.tilt_slider.sliderReleased.connect(self._send_now)
         controls.addWidget(self.tilt_value)
         controls.addWidget(self.tilt_slider)
 
@@ -973,6 +1148,12 @@ class VerifyPage(QWizardPage):
 
         self.preview = HeadPreviewWidget()
         main.addWidget(self.preview, stretch=1)
+
+        # Throttle: on slider drag, coalesce updates so we send at most one
+        # goal per ~80 ms. Final position is guaranteed via sliderReleased.
+        self._send_timer = QTimer(self)
+        self._send_timer.setSingleShot(True)
+        self._send_timer.timeout.connect(self._send_now)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
@@ -987,11 +1168,28 @@ class VerifyPage(QWizardPage):
         self.pan_slider.setMaximum(int(self.state.cfg.pan_limits_deg[1] * 10))
         self.tilt_slider.setMinimum(int(self.state.cfg.tilt_limits_deg[0] * 10))
         self.tilt_slider.setMaximum(int(self.state.cfg.tilt_limits_deg[1] * 10))
+        # Hook right-drag on the 3D preview to head movement
+        try:
+            self.preview.head_drag_delta.connect(self._on_drag)
+        except Exception:
+            pass
         ctrl = self.state.controller
         if ctrl is not None:
             try:
                 ctrl.reload_config(self.state.cfg)
                 ctrl.enable_torque(True)
+                # Faster than jog speed so big slider sweeps complete quickly;
+                # 1500 ticks/s = ~370°/s of motor shaft.
+                ctrl.bus.set_goal_speed(self.state.cfg.left_servo_id, 1500)
+                ctrl.bus.set_goal_speed(self.state.cfg.right_servo_id, 1500)
+                # Time-mode: both motors complete each move in the same time
+                # window (~150 ms). Eliminates the transient tilt during a
+                # pure-pan command (and vice-versa) caused by one motor
+                # finishing slightly before the other. 150 chosen as a
+                # compromise — small enough to feel responsive, large enough
+                # that the longest sweeps still complete within the window.
+                ctrl.bus.set_goal_time(self.state.cfg.left_servo_id, 150)
+                ctrl.bus.set_goal_time(self.state.cfg.right_servo_id, 150)
                 ctrl.set_head_pose(0.0, 0.0)
             except Exception as e:
                 log.warning(f"verify init: {e}")
@@ -999,22 +1197,60 @@ class VerifyPage(QWizardPage):
 
     def cleanupPage(self) -> None:
         self._timer.stop()
+        self._send_timer.stop()
+        ctrl = self.state.controller
+        if ctrl is not None:
+            # Disable time-mode so downstream pages use GOAL_SPEED
+            try:
+                ctrl.bus.set_goal_time(self.state.cfg.left_servo_id, 0)
+                ctrl.bus.set_goal_time(self.state.cfg.right_servo_id, 0)
+            except Exception:
+                pass
+        try:
+            self.preview.head_drag_delta.disconnect(self._on_drag)
+        except Exception:
+            pass
+
+    def _on_drag(self, dpan: float, dtilt: float) -> None:
+        """Right-click-drag delta from the 3D preview. Update sliders (which
+        clamp to limits) and send the new pose."""
+        new_pan = (self.pan_slider.value() + dpan * 10)
+        new_tilt = (self.tilt_slider.value() + dtilt * 10)
+        # setValue clamps to the slider's min/max (= the soft limits)
+        self.pan_slider.setValue(int(new_pan))
+        self.tilt_slider.setValue(int(new_tilt))
+        # _on_changed already fired via valueChanged; ensure prompt commit
+        if not self._send_timer.isActive():
+            self._send_timer.start(40)
 
     def _on_changed(self) -> None:
+        """Slider moved (drag or click): update labels immediately, but
+        coalesce servo writes via the throttle timer."""
         pan = self.pan_slider.value() / 10.0
         tilt = self.tilt_slider.value() / 10.0
         self.pan_value.setText(f"Pan: {pan:+.1f}°")
         self.tilt_value.setText(f"Tilt: {tilt:+.1f}°")
+        if not self._send_timer.isActive():
+            self._send_timer.start(80)   # ~12 Hz max command rate
+
+    def _send_now(self) -> None:
+        """Push the current slider values to the servos. Called by the
+        throttle timer and by sliderReleased (final commit)."""
+        self._send_timer.stop()
         ctrl = self.state.controller
-        if ctrl is not None:
-            try:
-                ctrl.set_head_pose(pan, tilt)
-            except Exception as e:
-                log.warning(f"verify move: {e}")
+        if ctrl is None:
+            return
+        pan = self.pan_slider.value() / 10.0
+        tilt = self.tilt_slider.value() / 10.0
+        try:
+            ctrl.set_head_pose(pan, tilt)
+        except Exception as e:
+            log.warning(f"verify move: {e}")
 
     def _home(self) -> None:
         self.pan_slider.setValue(0)
         self.tilt_slider.setValue(0)
+        self._send_now()
 
     def _refresh(self) -> None:
         ctrl = self.state.controller
