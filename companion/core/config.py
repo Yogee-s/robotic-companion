@@ -192,6 +192,53 @@ class ConversationConfig:
 
 
 @dataclass
+class MotorConfig:
+    """Head-tracking motor module (two ST3215 servos in differential bevel gear).
+
+    Most fields are set by the calibration wizard (companion/ui/calibration_window.py).
+    Kinematics convention: gear_ratio = crown_teeth / pinion_teeth (e.g. 40/20 = 2.0).
+    """
+    enabled: bool = False                          # master toggle; main.py skips init if false
+    sim_only: bool = True                          # force SimulatedBus even when enabled
+    port: str = "/dev/ttyUSB0"
+    baudrate: int = 1000000
+    sync_write: bool = True                        # GroupSyncWrite for coordinated L/R motion
+
+    left_servo_id: int = 1
+    right_servo_id: int = 2
+
+    # Calibration outputs
+    left_zero_tick: int = 2048
+    right_zero_tick: int = 2048
+    left_direction: int = 1                        # ±1, per-motor sign
+    right_direction: int = -1
+    gear_ratio_nominal: float = 2.0                # CAD: crown_teeth/pinion_teeth (40/20)
+    gear_ratio_measured: float = 2.0               # overwritten by empirical measurement
+    backlash_deg: float = 1.0
+    invert_pan: bool = False                       # axis-level sign flips (separate from per-motor)
+    invert_tilt: bool = False
+
+    # Soft limits in head frame, degrees
+    pan_limits_deg: list[float] = field(default_factory=lambda: [-90.0, 90.0])
+    tilt_limits_deg: list[float] = field(default_factory=lambda: [-30.0, 30.0])
+
+    # Motion + safety
+    max_speed_ticks_per_s: int = 2000
+    max_acceleration: int = 50
+    torque_limit: int = 800                        # 0-1000 (ST3215 register)
+    max_temperature_c: float = 65.0
+    home_on_startup: bool = False
+    poll_hz: float = 30.0
+
+    # Stall detection — if a motor fails to reach its goal for stall_timeout_s,
+    # the controller stops pushing and holds current position (prevents forcing
+    # through mechanical stops / obstructions / a pinched cable)
+    stall_detect: bool = True
+    stall_position_error_ticks: int = 30     # ~2.6° of motor shaft, ~1.3° of head
+    stall_timeout_s: float = 1.5
+
+
+@dataclass
 class GUIConfig:
     window_width: int = 1280
     window_height: int = 820
@@ -224,6 +271,7 @@ class AppConfig:
     vision: VisionConfig = field(default_factory=VisionConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
     conversation: ConversationConfig = field(default_factory=ConversationConfig)
+    motor: MotorConfig = field(default_factory=MotorConfig)
     gui: GUIConfig = field(default_factory=GUIConfig)
 
     project_root: str = ""

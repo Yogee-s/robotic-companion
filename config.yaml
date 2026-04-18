@@ -160,6 +160,50 @@ conversation:
   log_directory: logs
   allow_interruption: true
 
+# ── Head tracking motors (two ST3215 in differential bevel gear) ────────────
+# Values under "Calibration outputs" are set by the calibration wizard:
+#   python -m companion.motor.cli calibrate           (with hardware)
+#   python -m companion.motor.cli calibrate --sim     (rehearse without motors)
+motor:
+  enabled: false                              # master toggle — main.py skips init if false
+  sim_only: true                              # force simulator bus even when enabled
+  port: /dev/ttyACM0
+  baudrate: 1000000
+  sync_write: true                            # GroupSyncWrite — coordinated L/R, avoids pan wobble
+
+  left_servo_id: 1
+  right_servo_id: 2
+
+  # Calibration outputs ─────────────────────────────────────────────────────
+  left_zero_tick: 2048                        # encoder tick when head is centered + level
+  right_zero_tick: 2048
+  left_direction: 1                           # ±1, per-motor sign (set by direction test)
+  right_direction: -1
+  gear_ratio_nominal: 2.0                     # CAD: crown_teeth / pinion_teeth (40/20 = 2.0)
+  gear_ratio_measured: 2.0                    # empirically measured during calibration
+  backlash_deg: 1.0
+  invert_pan: false                           # axis-level sign (set by combined-sanity step)
+  invert_tilt: false
+
+  # Soft limits, degrees — head must return to center, no 360° pan
+  pan_limits_deg: [-90.0, 90.0]
+  tilt_limits_deg: [-30.0, 30.0]
+
+  # Motion + safety ─────────────────────────────────────────────────────────
+  max_speed_ticks_per_s: 2000
+  max_acceleration: 50
+  torque_limit: 800                           # 0-1000 (ST3215 register)
+  max_temperature_c: 65.0                     # thermal cutoff — disables torque above this
+  home_on_startup: false
+  poll_hz: 30.0                               # telemetry poll rate
+
+  # Stall detection: if a motor can't reach its goal within the timeout, the
+  # controller stops pushing and commands it to hold current position. Protects
+  # against forcing the head past a mechanical stop or through an obstruction.
+  stall_detect: true
+  stall_position_error_ticks: 30              # ~2.6° motor, ~1.3° head (gear ratio 2)
+  stall_timeout_s: 1.5
+
 # ── Desktop GUI ─────────────────────────────────────────────────────────────
 gui:
   window_width: 1280

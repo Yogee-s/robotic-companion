@@ -60,6 +60,11 @@ pyqtgraph>=0.13
 opencv-contrib-python>=4.8         # cv2.FaceDetectorYN (YuNet)
 onnxruntime-gpu>=1.16              # CUDA EP for HSEmotion + EOU + TitaNet
 
+# ── Head tracking motors (ST3215 + simulator + 3D preview) ──
+feetech-servo-sdk>=1.0.0           # Feetech ST/SCS protocol SDK (imports as `scservo_sdk`)
+PyOpenGL>=3.1.0                    # required by pyqtgraph.opengl for 3D head preview
+# PyOpenGL-accelerate is optional — adds a compiled fast-path if wheel is available
+
 # ── System monitoring ──
 psutil>=5.9
 
