@@ -76,6 +76,9 @@ log = logging.getLogger(__name__)
 
 # ── Shared helpers ──────────────────────────────────────────────────────────
 
+_BGR_TO_PIXMAP_DIAG_LOGGED = False
+
+
 def _bgr_to_pixmap(frame: Optional[np.ndarray], max_w: int = 480) -> QPixmap:
     """Convert numpy BGR (or BGRA / gray) frame → QPixmap, scaled to max_w.
 
@@ -83,6 +86,9 @@ def _bgr_to_pixmap(frame: Optional[np.ndarray], max_w: int = 480) -> QPixmap:
       - cameras that return 4-channel (BGRA / BGRx) frames
       - non-contiguous arrays (causes garbled / all-one-colour output)
       - short-lived numpy buffers (forces a deep copy into QImage storage)
+
+    Logs one diagnostic line the first time it runs so we can tell whether
+    the camera is actually outputting green vs. a Qt-side mishap.
     """
     if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
         return QPixmap()
@@ -92,6 +98,18 @@ def _bgr_to_pixmap(frame: Optional[np.ndarray], max_w: int = 480) -> QPixmap:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
     elif frame.ndim != 3 or frame.shape[2] != 3:
         return QPixmap()
+
+    global _BGR_TO_PIXMAP_DIAG_LOGGED
+    if not _BGR_TO_PIXMAP_DIAG_LOGGED:
+        try:
+            b, g, r = frame.mean(axis=(0, 1))
+            log.warning(
+                f"[debug_gui] first frame: shape={frame.shape} dtype={frame.dtype} "
+                f"BGR means=({b:.0f}, {g:.0f}, {r:.0f})"
+            )
+        except Exception:
+            pass
+        _BGR_TO_PIXMAP_DIAG_LOGGED = True
 
     h, w = frame.shape[:2]
     if w > max_w:
@@ -180,6 +198,43 @@ class SharedHead:
     @property
     def head(self):
         return self._head
+
+
+class SharedRenderer:
+    """Lightweight reference to the currently-running face renderer.
+
+    Set by FaceTab on launch, cleared on stop. Vision tab reads it to
+    mirror the detected emotion onto the face display in real time.
+    """
+
+    def __init__(self) -> None:
+        self._renderer = None
+        self._lock = threading.Lock()
+
+    def set(self, renderer) -> None:
+        with self._lock:
+            self._renderer = renderer
+
+    def clear(self) -> None:
+        with self._lock:
+            self._renderer = None
+
+    @property
+    def renderer(self):
+        return self._renderer
+
+
+# Map EmotionClassifier labels → FaceState.expression hints so detected
+# emotions get the same distinctive ornaments as the Face-display presets.
+_EMOTION_TO_EXPRESSION = {
+    "Happiness": "excited",
+    "Surprise":  "surprised",
+    "Fear":      "confused",
+    "Sadness":   "sad",
+    "Anger":     "angry",
+    "Disgust":   "angry",
+    # Contempt / Neutral have no distinctive ornament → None (pure V/A).
+}
 
 
 class SharedVision:
@@ -647,12 +702,31 @@ class STTTab(QWidget):
             except Exception: pass
 
         audio = np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
+        # Diagnostics — ALSA can silently drop frames and leave us with zero
+        # chunks while PortAudio prints only warnings. Log what we got so
+        # "[no speech]" failures have a paper trail.
+        n = audio.size
+        peak = float(np.max(np.abs(audio))) if n else 0.0
+        rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2))) if n else 0.0
+        log.info(
+            f"STT record: chunks={len(chunks)} samples={n} "
+            f"({n/16000:.2f}s) peak={peak:.3f} rms={rms:.4f}"
+        )
         t_start = time.time()
         try:
             text = self._stt.transcribe(audio)
         except Exception as exc:
             text = f"[transcribe failed: {exc!r}]"
-        self.done_signal.emit(text or "[no speech]", time.time() - t_start)
+        # Give the user an informative hint instead of silent "[no speech]"
+        # when the stream produced no real audio.
+        if not text:
+            if n == 0:
+                text = "[no audio captured — ALSA/PortAudio didn't deliver any frames]"
+            elif peak < 0.01:
+                text = f"[no speech — mic was silent (peak={peak:.4f}, rms={rms:.5f})]"
+            else:
+                text = "[no speech detected in audio]"
+        self.done_signal.emit(text, time.time() - t_start)
 
     def _on_done(self, text: str, latency: float) -> None:
         self._lat.set_value(f"{latency:.2f}")
@@ -813,7 +887,9 @@ class TTSTab(QWidget):
 
         s = _Scaffold(self, "Text-to-Speech",
                       "Synthesise a sentence with Kokoro (natural) or Piper (fast). "
-                      "RTF <1.0 means faster-than-realtime.")
+                      "RTF <1.0 means faster-than-realtime. "
+                      "⚠ Stop Audio / STT first — simultaneous capture + playback "
+                      "crashes PortAudio on Jetson ALSA.")
 
         self._engine = QComboBox(); self._engine.addItems(["kokoro", "piper"])
         self._engine.setCurrentText(cfg.tts.engine)
@@ -1130,7 +1206,13 @@ class MemoryTab(QWidget):
 class VisionTab(QWidget):
     ready_signal = pyqtSignal(bool, str)  # ok, status message
 
-    def __init__(self, cfg: AppConfig, shared_vision: Optional["SharedVision"] = None, pipeline=None) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        shared_vision: Optional["SharedVision"] = None,
+        pipeline=None,
+        shared_renderer: Optional["SharedRenderer"] = None,
+    ) -> None:
         super().__init__()
         self.cfg = cfg
         # Normalise to a SharedVision so the lifecycle logic is uniform.
@@ -1140,11 +1222,14 @@ class VisionTab(QWidget):
             self._sv = SharedVision(cfg, preexisting=pipeline)
         else:
             self._sv = SharedVision(cfg)
+        self._shared_renderer = shared_renderer
         self._acquired = False
+        self._last_mirrored_label: Optional[str] = None
 
         s = _Scaffold(self, "Vision + emotion",
                       "Live camera, face bbox, YOLO pose detector, and the emotion circumplex. "
-                      "Can run simultaneously with Face tracking (they share one camera + pipeline).")
+                      "Can run simultaneously with Face tracking (they share one camera + pipeline). "
+                      "Tick 'Mirror to face' to stream the detected emotion to the face display.")
 
         self._start_btn = QPushButton("Start")
         self._stop_btn = QPushButton("Stop"); self._stop_btn.setEnabled(False)
@@ -1156,6 +1241,14 @@ class VisionTab(QWidget):
         metrics = QHBoxLayout(); metrics.setSpacing(8)
         metrics.addWidget(self._fps_card); metrics.addWidget(self._lat_card)
         s.ll.addLayout(metrics)
+
+        self._mirror = QCheckBox("Mirror to face display")
+        self._mirror.setToolTip(
+            "Stream the detected valence / arousal / expression to the "
+            "face display. Launch 'Face display' first — otherwise this "
+            "just shows a warning."
+        )
+        s.ll.addWidget(self._mirror)
 
         self._preview = _preview_label("Click Start — camera preview appears here.", min_h=260)
         self._label = QLabel("—"); self._label.setObjectName("Heading")
@@ -1250,6 +1343,42 @@ class VisionTab(QWidget):
                             (x, max(18, y - 6)), cv2.FONT_HERSHEY_SIMPLEX,
                             0.55, (0, 220, 120), 1, cv2.LINE_AA)
             self._preview.setPixmap(_bgr_to_pixmap(frame, max_w=520))
+
+        if self._mirror.isChecked():
+            self._mirror_to_face(s)
+
+    def _mirror_to_face(self, s) -> None:
+        """Forward the detected emotion to the face renderer.
+
+        No-op if no face display has been launched; keeps the detection
+        free-running either way. Status line tells the user what's happening.
+        """
+        from companion.display.state import FaceState
+        renderer = (
+            self._shared_renderer.renderer
+            if self._shared_renderer is not None else None
+        )
+        if renderer is None:
+            # Don't spam the status line every 66 ms — only change on transitions.
+            if self._last_mirrored_label != "__no_renderer__":
+                self.set_status(
+                    "Mirror on, but no face display running — launch Face display."
+                )
+                self._last_mirrored_label = "__no_renderer__"
+            return
+        expression = _EMOTION_TO_EXPRESSION.get(s.label) if s.has_face else None
+        try:
+            renderer.set_face(FaceState(
+                valence=float(s.valence),
+                arousal=float(s.arousal),
+                expression=expression,
+            ))
+        except Exception as exc:
+            log.debug(f"mirror_to_face failed: {exc!r}")
+            return
+        if s.label != self._last_mirrored_label:
+            self.set_status(f"Mirroring '{s.label}' to face display.")
+            self._last_mirrored_label = s.label
 
 
 # ── VLM tab ─────────────────────────────────────────────────────────────────
@@ -1374,29 +1503,34 @@ class VLMTab(QWidget):
 # ── Face display tab ────────────────────────────────────────────────────────
 
 class FaceTab(QWidget):
-    # (valence, arousal, sleep). Happy and Calm removed because the pygame
-    # backend draws them almost identically to Excited / Neutral — arousal
-    # only faintly changes eye size, so nearby V/A points collapse visually.
-    # Confused uses a slight negative valence + raised arousal to get the
-    # asymmetric-looking brows the renderer produces for low-confidence states.
+    # (valence, arousal, sleep, expression_hint). Each preset picks a V/A
+    # pair AND an explicit expression hint so the renderer draws
+    # distinctive ornaments (swirl eyes for confused, teeth for angry,
+    # teardrop for sad, sparkles for excited) instead of blurring together.
     PRESETS = (
-        ("Neutral",   (0.0,  0.0,  False)),
-        ("Excited",   (+0.8, +0.9, False)),
-        ("Surprised", (+0.1, +0.95, False)),
-        ("Confused",  (-0.25, +0.35, False)),
-        ("Sad",       (-0.7, -0.3, False)),
-        ("Angry",     (-0.7, +0.7, False)),
-        ("Sleep",     (0.0,  -0.8, True)),
+        ("Neutral",   (0.0,   0.0, False, None)),
+        ("Excited",   (+0.8, +0.9, False, "excited")),
+        ("Surprised", (+0.1, +0.95, False, "surprised")),
+        ("Confused",  (-0.25, +0.35, False, "confused")),
+        ("Sad",       (-0.7, -0.3, False, "sad")),
+        ("Angry",     (-0.7, +0.7, False, "angry")),
+        ("Sleep",     (0.0,  -0.8, True,  None)),
     )
 
-    def __init__(self, cfg: AppConfig) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        shared_renderer: Optional["SharedRenderer"] = None,
+    ) -> None:
         super().__init__()
         self.cfg = cfg
+        self._shared_renderer = shared_renderer
         self._renderer = None
 
         s = _Scaffold(self, "Face display",
                       "Drive the ESP32 touchscreen (or HDMI pygame fallback). "
-                      "Pick a preset; the current emotion is shown on the right.")
+                      "Pick a preset; the current emotion is shown on the right. "
+                      "Launch once to let Vision mirror detected emotions here.")
 
         self._launch_btn = QPushButton("Launch face")
         self._stop_btn = QPushButton("Stop"); self._stop_btn.setEnabled(False)
@@ -1447,6 +1581,8 @@ class FaceTab(QWidget):
             lambda n, p: self._current.setText(f"action: {n}")
         )
         self._renderer.start()
+        if self._shared_renderer is not None:
+            self._shared_renderer.set(self._renderer)
         self._info.setText(f"Backend: {type(self._renderer).__name__}\nNo preset selected yet.")
         self._launch_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
@@ -1454,6 +1590,8 @@ class FaceTab(QWidget):
         self._current.setText("Neutral")
 
     def _stop(self) -> None:
+        if self._shared_renderer is not None:
+            self._shared_renderer.clear()
         if self._renderer is not None:
             try: self._renderer.stop()
             except Exception: pass
@@ -1464,19 +1602,26 @@ class FaceTab(QWidget):
         self._info.setText("Backend: (not started)\nValence / arousal shown here.")
         self.set_status("Stopped.")
 
-    def _set(self, params: tuple[float, float, bool], name: str) -> None:
+    def _set(self, params: tuple, name: str) -> None:
         from companion.display.state import FaceState
         if self._renderer is None:
             self._launch_face()
         if self._renderer is None:
             return
-        v, a, sleep = params
-        self._renderer.set_face(FaceState(valence=v, arousal=a, sleep=sleep))
+        v, a, sleep, expression = params
+        self._renderer.set_face(FaceState(
+            valence=v, arousal=a, sleep=sleep, expression=expression,
+        ))
         self._current.setText(name)
-        flag = "  (sleep flag)" if sleep else ""
+        flags = []
+        if sleep:
+            flags.append("sleep")
+        if expression:
+            flags.append(f"expr:{expression}")
+        flag_str = f"  ({', '.join(flags)})" if flags else ""
         self._info.setText(
             f"Backend: {type(self._renderer).__name__}\n"
-            f"Preset: {name}{flag}\nValence: {v:+.2f}   Arousal: {a:+.2f}"
+            f"Preset: {name}{flag_str}\nValence: {v:+.2f}   Arousal: {a:+.2f}"
         )
         self.set_status(f"Preset: {name}")
 
@@ -1501,16 +1646,37 @@ class FaceTrackingTab(QWidget):
         self._tracker = None
 
         s = _Scaffold(self, "Face tracking",
-                      "Live YOLO-pose camera + PID servo control. Shares the EmotionPipeline "
-                      "with the Vision tab — both can run concurrently.")
+                      "Live YOLO-pose camera + proportional servo control. Shares the "
+                      "EmotionPipeline with the Vision tab — both can run concurrently. "
+                      "Hover any slider for a tuning hint; see the panel below for full guide.")
 
         self._sim = QCheckBox("Sim motors (safe)")
         self._sim.setChecked(True)
-        # Sliders + live value labels (more visible than tiny spinbox arrows
-        # and touch-friendly on the ESP32 screen).
+        self._sim.setToolTip(
+            "Sim mode: servos aren't driven, but the tracker still runs and "
+            "the preview shows where it would move. Use this before switching "
+            "to REAL motors to confirm framing and sensitivity."
+        )
+
+        _KP_HELP = (
+            "kp — proportional gain. How hard the head chases the face error each tick.\n"
+            "  • Low (0.05–0.15): very smooth but laggy — head trails the face.\n"
+            "  • Mid (0.20–0.40): good general balance. Start here.\n"
+            "  • High (0.60+): snappy but can overshoot and oscillate.\n"
+            "Tune up until the head tracks fast moves, then back off until oscillation stops."
+        )
+        _DEADBAND_HELP = (
+            "deadband — dead zone, in degrees. Errors smaller than this don't move the head.\n"
+            "  • Small (0–2°): very twitchy — servos micro-adjust on detection noise.\n"
+            "  • Mid (3–6°): stays still when the face is centred, chases real motion.\n"
+            "  • Large (10°+): face can drift noticeably before the head reacts.\n"
+            "Increase if the head jitters while looking straight at you; decrease if it feels sluggish."
+        )
+
         self._kp_slider = QSlider(Qt.Horizontal)
         self._kp_slider.setRange(5, 150)                 # 0.05 .. 1.50, step 0.01
         self._kp_slider.setValue(30)                     # default 0.30
+        self._kp_slider.setToolTip(_KP_HELP)
         self._kp_value_lbl = QLabel("0.30")
         self._kp_value_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._kp_slider.valueChanged.connect(
@@ -1519,6 +1685,7 @@ class FaceTrackingTab(QWidget):
         self._deadband_slider = QSlider(Qt.Horizontal)
         self._deadband_slider.setRange(0, 150)           # 0.0 .. 15.0, step 0.1
         self._deadband_slider.setValue(40)               # default 4.0°
+        self._deadband_slider.setToolTip(_DEADBAND_HELP)
         self._deadband_value_lbl = QLabel("4.0°")
         self._deadband_value_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._deadband_slider.valueChanged.connect(
@@ -1532,20 +1699,59 @@ class FaceTrackingTab(QWidget):
 
         s.ll.addWidget(self._sim)
 
-        def _slider_row(name: str, slider: QSlider, value_lbl: QLabel) -> QVBoxLayout:
+        def _slider_row(name: str, slider: QSlider, value_lbl: QLabel,
+                        hint: str = "") -> QVBoxLayout:
             col = QVBoxLayout(); col.setSpacing(2)
             top = QHBoxLayout(); top.setSpacing(6)
             top.addWidget(QLabel(name)); top.addStretch(1); top.addWidget(value_lbl)
             col.addLayout(top); col.addWidget(slider)
+            if hint:
+                h = QLabel(hint); h.setObjectName("Subtle")
+                h.setWordWrap(True)
+                col.addWidget(h)
             return col
 
-        s.ll.addLayout(_slider_row("kp", self._kp_slider, self._kp_value_lbl))
-        s.ll.addLayout(_slider_row("deadband", self._deadband_slider, self._deadband_value_lbl))
+        s.ll.addLayout(_slider_row(
+            "kp", self._kp_slider, self._kp_value_lbl,
+            hint="how hard it chases — start 0.30; higher = snappier, lower = smoother",
+        ))
+        s.ll.addLayout(_slider_row(
+            "deadband", self._deadband_slider, self._deadband_value_lbl,
+            hint="dead zone — raise if it jitters at rest, lower if it feels sluggish",
+        ))
         s.ll.addLayout(_btn_row(self._start_btn, self._stop_btn))
         s.ll.addWidget(self._fps_card)
 
-        self._preview = _preview_label("Live camera + pose overlay appears here when started.", min_h=380)
+        # Preview + tuning reference panel
+        self._preview = _preview_label("Live camera + pose overlay appears here when started.", min_h=320)
         s.lr.addWidget(self._preview, 1)
+
+        tuning_hdr = QLabel("Tuning guide")
+        tuning_hdr.setObjectName("Heading")
+        s.lr.addWidget(tuning_hdr)
+        tuning = QLabel(
+            "<b>kp (proportional gain)</b> — how hard the head chases the face each tick.<br>"
+            "&nbsp;&nbsp;• 0.05–0.15: smooth / laggy &nbsp;·&nbsp; "
+            "0.20–0.40: balanced (start here) &nbsp;·&nbsp; "
+            "0.60+: snappy, may oscillate.<br>"
+            "&nbsp;&nbsp;<i>Tune up until it tracks fast motion, then back off until oscillation stops.</i>"
+            "<br><br>"
+            "<b>deadband (°)</b> — errors smaller than this don't move the head.<br>"
+            "&nbsp;&nbsp;• 0–2°: twitchy (reacts to detection noise) &nbsp;·&nbsp; "
+            "3–6°: balanced &nbsp;·&nbsp; 10°+: face drifts before reaction.<br>"
+            "&nbsp;&nbsp;<i>Raise if the head jitters when you look straight at the camera; "
+            "lower if it feels sluggish.</i>"
+            "<br><br>"
+            "<b>Sim motors</b> — rehearse without torque. The preview still shows where the "
+            "head would go. Switch to REAL only after the preview looks right."
+            "<br><br>"
+            "<b>Not tunable here</b> (edit config.yaml if needed): camera HFOV 62° / VFOV 37°, "
+            "control rate 15 Hz, soft limits from motor calibration."
+        )
+        tuning.setWordWrap(True)
+        tuning.setTextFormat(Qt.RichText)
+        tuning.setObjectName("Subtle")
+        s.lr.addWidget(tuning)
 
         self._scaffold = s
         s.finalize()
@@ -1946,10 +2152,17 @@ class DebugGUI(QMainWindow):
         # Audio-tab DOA calibration reads the current head pose while Face
         # tracking is running — this is the handoff point.
         self.shared_head = SharedHead()
+        # Vision tab mirrors the detected emotion onto the Face display
+        # renderer in real time — this is the handoff point.
+        self.shared_renderer = SharedRenderer()
 
         for label, klass in _TAB_ORDER:
             if klass is VisionTab:
-                widget = VisionTab(cfg, shared_vision=self.shared_vision)
+                widget = VisionTab(
+                    cfg,
+                    shared_vision=self.shared_vision,
+                    shared_renderer=self.shared_renderer,
+                )
             elif klass is FaceTrackingTab:
                 widget = FaceTrackingTab(
                     cfg,
@@ -1960,6 +2173,8 @@ class DebugGUI(QMainWindow):
                 widget = AudioTab(cfg, shared_head=self.shared_head)
             elif klass is MotorControlTab:
                 widget = MotorControlTab(cfg, shared_head=self.shared_head)
+            elif klass is FaceTab:
+                widget = FaceTab(cfg, shared_renderer=self.shared_renderer)
             else:
                 widget = klass(cfg)
             self._tabs.addTab(widget, label)

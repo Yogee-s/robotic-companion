@@ -36,6 +36,12 @@ class FaceState:
     gaze_x: float = 0.0        # -1 left … +1 right (driven by DOA)
     current_viseme: str = "rest"
     scene: Scene = Scene.FACE
+    # Optional explicit expression hint — overrides / augments the
+    # V/A-based drawing with distinctive ornaments (swirl eyes for
+    # confused, sparkles for excited, tear for sad, anger marks, etc).
+    # None = pure V/A interpolation. Recognised:
+    #   "confused" | "surprised" | "excited" | "angry" | "sad"
+    expression: Optional[str] = None
 
 
 QUICK_GRID_ACTIONS = ("mute_mic", "stop_talking", "sleep", "more")

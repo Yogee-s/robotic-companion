@@ -42,6 +42,99 @@ def _draw_zzz(pygame_mod, surf, x: int, y: int) -> None:
         pygame_mod.draw.line(surf, col, (ox + sz, oy), (ox, oy + sz), 3)
         pygame_mod.draw.line(surf, col, (ox, oy + sz), (ox + sz, oy + sz), 3)
 
+
+def _draw_spiral_eye(pygame_mod, surf, cx: int, cy: int, radius: int,
+                     colour=(220, 220, 240), width: int = 2) -> None:
+    """Cartoon confusion-swirl eye: a single continuous spiral traced
+    from centre outward, so it reads unambiguously as a vortex."""
+    # Filled backdrop disk so the spiral reads on the face bg.
+    pygame_mod.draw.circle(surf, (18, 18, 30), (cx, cy), radius + 2)
+    # Archimedean spiral: r(t) = k*t, ~2 full turns.
+    pts = []
+    turns = 2.1
+    steps = 34
+    for i in range(steps + 1):
+        frac = i / steps
+        theta = frac * turns * 2 * math.pi
+        r = frac * radius
+        pts.append((cx + int(r * math.cos(theta)),
+                    cy + int(r * math.sin(theta))))
+    if len(pts) > 1:
+        pygame_mod.draw.lines(surf, colour, False, pts, width)
+    # Centre dot for contrast
+    pygame_mod.draw.circle(surf, colour, (cx, cy), 2)
+
+
+def _draw_dizzy_swirl(pygame_mod, surf, x: int, y: int, size: int = 28) -> None:
+    """Big hovering 'dizzy' swirl — the classic cartoon confusion symbol.
+
+    Single line tracing an Archimedean spiral outward, thicker than the
+    eye spirals so it reads from across the room.
+    """
+    col = (250, 230, 170)          # warm yellow
+    shadow = (180, 160, 100)       # faint drop shadow for depth
+    turns = 2.4
+    steps = 54
+    pts = []
+    for i in range(steps + 1):
+        frac = i / steps
+        theta = frac * turns * 2 * math.pi
+        r = frac * size
+        pts.append((x + int(r * math.cos(theta)),
+                    y + int(r * math.sin(theta))))
+    # Shadow first, then the bright swirl on top
+    shadow_pts = [(px + 1, py + 1) for (px, py) in pts]
+    if len(pts) > 1:
+        pygame_mod.draw.lines(surf, shadow, False, shadow_pts, 4)
+        pygame_mod.draw.lines(surf, col, False, pts, 3)
+    # Small end-cap dot so the spiral has a clear 'start'
+    pygame_mod.draw.circle(surf, col, pts[-1], 3)
+
+
+def _draw_tear(pygame_mod, surf, x: int, y: int) -> None:
+    """A single teardrop — used for sad expression."""
+    col = (110, 170, 240)
+    # Body (drop shape): triangle on top, circle at bottom
+    pygame_mod.draw.polygon(surf, col, [(x, y), (x - 5, y + 9), (x + 5, y + 9)])
+    pygame_mod.draw.circle(surf, col, (x, y + 12), 5)
+    # Highlight
+    pygame_mod.draw.circle(surf, (220, 235, 255), (x - 1, y + 10), 1)
+
+
+def _draw_sparkle(pygame_mod, surf, x: int, y: int, sz: int = 8) -> None:
+    """Four-point sparkle — used for excited."""
+    col = (255, 240, 150)
+    # Horizontal + vertical strokes
+    pygame_mod.draw.line(surf, col, (x - sz, y), (x + sz, y), 2)
+    pygame_mod.draw.line(surf, col, (x, y - sz), (x, y + sz), 2)
+    # Diagonals, half-length, for a plus-with-star look
+    d = int(sz * 0.55)
+    pygame_mod.draw.line(surf, col, (x - d, y - d), (x + d, y + d), 1)
+    pygame_mod.draw.line(surf, col, (x - d, y + d), (x + d, y - d), 1)
+
+
+def _draw_anger_mark(pygame_mod, surf, x: int, y: int) -> None:
+    """Four radial 'veins' — the classic anime anger symbol."""
+    col = (230, 90, 90)
+    for ang in (0.0, math.pi / 2, math.pi, 3 * math.pi / 2):
+        dx = int(10 * math.cos(ang))
+        dy = int(10 * math.sin(ang))
+        pygame_mod.draw.line(surf, col, (x, y), (x + dx, y + dy), 3)
+    # Small hub
+    pygame_mod.draw.circle(surf, col, (x, y), 3)
+
+
+def _draw_wavy_mouth(pygame_mod, surf, cx: int, cy: int, width: int) -> None:
+    """Zig-zag mouth — used for confused (can't decide a smile or a frown)."""
+    col = (240, 200, 210)
+    pts = []
+    steps = 6
+    for i in range(steps + 1):
+        x = cx - width // 2 + int(width * (i / steps))
+        y = cy + (4 if i % 2 else -4)
+        pts.append((x, y))
+    pygame_mod.draw.lines(surf, col, False, pts, 3)
+
 log = logging.getLogger(__name__)
 
 
@@ -171,29 +264,65 @@ class PygameRenderer:
         eye_offset = int(fs.gaze_x * eye_rad * 0.6)
         eye_col = (220, 220, 240)
         pupil_col = (20, 24, 40)
+        brow_col = (240, 240, 255)
+        mouth_col = (240, 200, 210)
 
-        # Dedicated sleep face: closed eyes as gentle curves, no brows, small m-mouth, zzz glyph.
+        # ── Dedicated sleep face ────────────────────────────────────────
         if fs.sleep:
             for side in (-1, 1):
                 ex = cx + side * eye_dx
-                # Curved eyelid: two short segments approximating a smile-shaped lid
                 pygame_mod.draw.arc(
                     surf, eye_col,
                     pygame_mod.Rect(ex - eye_rad, eye_y - 4, eye_rad * 2, 8),
                     0, math.pi, 3,
                 )
-            # Small 'm' mouth
             mouth_y = int(cy + h * 0.14)
             mw = int(w * 0.08)
             pygame_mod.draw.arc(
-                surf, (240, 200, 210),
+                surf, mouth_col,
                 pygame_mod.Rect(cx - mw, mouth_y - 4, 2 * mw, 10),
                 math.pi, 2 * math.pi, 3,
             )
             _draw_zzz(pygame_mod, surf, cx + int(w * 0.22), int(cy - h * 0.20))
             return
 
-        # Eyes
+        # ── Dedicated confused face — spiral eyes + wavy mouth + dizzy swirl
+        if fs.expression == "confused":
+            # Spiral swirl eyes (override normal eye drawing).
+            swirl_eye_rad = int(eye_rad * 1.4)
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                _draw_spiral_eye(pygame_mod, surf, ex, eye_y,
+                                 swirl_eye_rad, width=2)
+            # Asymmetric brows — left up-slope, right down-slope (classic
+            # "one-eyebrow-raised" confused look).
+            brow_y = eye_y - swirl_eye_rad - 8
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (cx - eye_dx - swirl_eye_rad, brow_y - 4),
+                (cx - eye_dx + swirl_eye_rad, brow_y + 8),
+                3,
+            )
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (cx + eye_dx - swirl_eye_rad, brow_y + 8),
+                (cx + eye_dx + swirl_eye_rad, brow_y - 4),
+                3,
+            )
+            # Zigzag mouth
+            mouth_y = int(cy + h * 0.14)
+            _draw_wavy_mouth(pygame_mod, surf, cx, mouth_y, int(w * 0.20))
+            # Big dizzy swirl hovering above the head — the defining marker.
+            swirl_size = max(22, int(min(w, h) * 0.11))
+            _draw_dizzy_swirl(
+                pygame_mod, surf,
+                cx + int(w * 0.24),
+                int(cy - h * 0.28),
+                size=swirl_size,
+            )
+            return
+
+        # ── Base eyes ───────────────────────────────────────────────────
         for side in (-1, 1):
             ex = cx + side * eye_dx + eye_offset
             if blink_closed:
@@ -201,25 +330,73 @@ class PygameRenderer:
                                      (ex + eye_rad, eye_y), 4)
             else:
                 pygame_mod.draw.circle(surf, eye_col, (ex, eye_y), eye_rad)
-                pygame_mod.draw.circle(surf, pupil_col,
-                                       (ex + eye_offset // 2, eye_y), eye_rad // 2)
+                # Pupil size — big for surprise (wide-eyed small-pupil look),
+                # normal otherwise. Excited gets a highlight gleam.
+                pupil_rad = eye_rad // 2
+                if fs.expression == "surprised":
+                    pupil_rad = max(2, eye_rad // 3)
+                pygame_mod.draw.circle(
+                    surf, pupil_col,
+                    (ex + eye_offset // 2, eye_y), pupil_rad,
+                )
+                if fs.expression == "excited":
+                    pygame_mod.draw.circle(
+                        surf, (255, 255, 255),
+                        (ex + eye_offset // 2 - pupil_rad // 2,
+                         eye_y - pupil_rad // 2),
+                        max(1, pupil_rad // 3),
+                    )
 
-        # Eyebrows — tilt with valence (down-inner for happy, up-inner for sad/angry)
-        # Raise with arousal (higher brows = more alert). Amplified.
-        brow_tilt = int(fs.valence * -18) + int(fs.arousal * 6)
-        brow_y_lift = int(max(0.0, fs.arousal) * 6)
-        for side in (-1, 1):
-            ex = cx + side * eye_dx
-            y_off = side * brow_tilt
-            y0 = eye_y - eye_rad - 8 - brow_y_lift
-            pygame_mod.draw.line(
-                surf, (240, 240, 255),
-                (ex - eye_rad, y0 + y_off),
-                (ex + eye_rad, y0 - y_off),
-                3,
-            )
+        # ── Brows ───────────────────────────────────────────────────────
+        # Shape varies per expression.
+        brow_y0 = eye_y - eye_rad - 8
+        if fs.expression == "angry":
+            # Sharp V, inner-corners very low, converging toward nose.
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, brow_y0 - 6),              # outer high
+                    (ex + side * eye_rad, brow_y0 + 10),       # inner low
+                    4,
+                )
+        elif fs.expression == "sad":
+            # Inner corners raised (classic sad brow).
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, brow_y0 + 4),               # outer low
+                    (ex + side * eye_rad, brow_y0 - 8),         # inner high
+                    3,
+                )
+        elif fs.expression == "surprised":
+            # Both brows lifted high and flat.
+            brow_y0 -= 14
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, brow_y0),
+                    (ex + eye_rad, brow_y0),
+                    3,
+                )
+        else:
+            # V/A-driven default (neutral + excited fall here).
+            brow_tilt = int(fs.valence * -18) + int(fs.arousal * 6)
+            brow_y_lift = int(max(0.0, fs.arousal) * 6)
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                y_off = side * brow_tilt
+                y0 = eye_y - eye_rad - 8 - brow_y_lift
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, y0 + y_off),
+                    (ex + eye_rad, y0 - y_off),
+                    3,
+                )
 
-        # Mouth — valence curves it; arousal opens it; viseme shapes during speech.
+        # ── Mouth ───────────────────────────────────────────────────────
         mouth_y = int(cy + h * 0.14)
         mouth_w = int(w * 0.26)
         viseme_h = {
@@ -227,29 +404,81 @@ class PygameRenderer:
             "oh": 28, "ahh": 36, "ee": 10,
             "fv": 8, "l": 18,
         }.get(viseme, 10)
-        # Arousal opens the mouth (wide excited grin, flat calm mouth).
         arousal_open = max(0, int(max(0.0, fs.arousal) * 18))
         mouth_h = viseme_h + arousal_open
         smile = fs.valence * 18
-        rect = pygame_mod.Rect(
-            cx - mouth_w // 2,
-            mouth_y - mouth_h // 2 - int(smile),
-            mouth_w,
-            mouth_h + int(abs(smile)),
-        )
-        # Draw lower half as arc, but if aroused+happy, fill a wider smile.
-        if fs.valence > 0.4 and fs.arousal > 0.4:
-            # Big excited grin — filled arc
-            pygame_mod.draw.arc(surf, (240, 200, 210), rect, math.pi, 2 * math.pi, 5)
-            # Show teeth hint
+
+        if fs.expression == "surprised":
+            # Big round 'O' — the defining surprise shape.
+            r = int(min(w, h) * 0.06)
+            pygame_mod.draw.circle(surf, mouth_col, (cx, mouth_y), r, 3)
+        elif fs.expression == "excited":
+            # Big filled grin with teeth.
+            grin_rect = pygame_mod.Rect(
+                cx - int(mouth_w * 0.55),
+                mouth_y - 8 - int(smile),
+                int(mouth_w * 1.1),
+                22 + int(abs(smile)),
+            )
+            pygame_mod.draw.arc(surf, mouth_col, grin_rect,
+                                math.pi, 2 * math.pi, 5)
             pygame_mod.draw.line(
-                surf, (240, 200, 210),
-                (rect.left + 8, rect.centery),
-                (rect.right - 8, rect.centery),
+                surf, mouth_col,
+                (grin_rect.left + 10, grin_rect.centery),
+                (grin_rect.right - 10, grin_rect.centery),
                 2,
             )
+        elif fs.expression == "angry":
+            # Gritted horizontal teeth — tight line.
+            pygame_mod.draw.line(
+                surf, mouth_col,
+                (cx - mouth_w // 2, mouth_y), (cx + mouth_w // 2, mouth_y),
+                4,
+            )
+            # Vertical teeth separators
+            for k in range(-2, 3):
+                x = cx + k * int(mouth_w * 0.12)
+                pygame_mod.draw.line(surf, mouth_col,
+                                     (x, mouth_y - 5), (x, mouth_y + 5), 2)
+        elif fs.expression == "sad":
+            # Downturned arc (flip the smile).
+            frown_h = 14
+            rect = pygame_mod.Rect(
+                cx - mouth_w // 2,
+                mouth_y - frown_h // 2,
+                mouth_w,
+                frown_h,
+            )
+            pygame_mod.draw.arc(surf, mouth_col, rect, 0, math.pi, 4)
         else:
-            pygame_mod.draw.arc(surf, (240, 200, 210), rect, math.pi, 2 * math.pi, 4)
+            rect = pygame_mod.Rect(
+                cx - mouth_w // 2,
+                mouth_y - mouth_h // 2 - int(smile),
+                mouth_w,
+                mouth_h + int(abs(smile)),
+            )
+            pygame_mod.draw.arc(surf, mouth_col, rect, math.pi, 2 * math.pi, 4)
+
+        # ── Ornaments — drawn on top of the base face ───────────────────
+        if fs.expression == "excited":
+            # Three sparkles around the head
+            for sx, sy, sz in (
+                (cx - int(w * 0.28), int(cy - h * 0.28), 9),
+                (cx + int(w * 0.28), int(cy - h * 0.22), 11),
+                (cx + int(w * 0.20), int(cy + h * 0.02),  7),
+            ):
+                _draw_sparkle(pygame_mod, surf, sx, sy, sz)
+        elif fs.expression == "angry":
+            _draw_anger_mark(
+                pygame_mod, surf,
+                cx - int(w * 0.22), int(cy - h * 0.22),
+            )
+        elif fs.expression == "sad":
+            # One teardrop under the left eye
+            _draw_tear(
+                pygame_mod, surf,
+                cx - eye_dx + 3, eye_y + eye_rad + 2,
+            )
 
     @staticmethod
     def _draw_privacy_band(pygame_mod, surf) -> None:
