@@ -21,7 +21,6 @@ class MetricCard(QFrame):
         self._label = QLabel(label)
         self._label.setStyleSheet(f"color: {PALETTE['text_dim']}; font-size: 11px;")
 
-        row = QLabel()
         self._value = QLabel(value)
         self._value.setStyleSheet(f"color: {PALETTE['text']}; font-size: 22px; font-weight: 600;")
         self._unit = QLabel(unit)
@@ -30,8 +29,7 @@ class MetricCard(QFrame):
 
         from PyQt5.QtWidgets import QHBoxLayout
 
-        row_w = QFrame()
-        row_l = QHBoxLayout(row_w)
+        row_l = QHBoxLayout()
         row_l.setContentsMargins(0, 0, 0, 0)
         row_l.setSpacing(4)
         row_l.addWidget(self._value)
@@ -39,7 +37,7 @@ class MetricCard(QFrame):
         row_l.addStretch(1)
 
         lay.addWidget(self._label)
-        lay.addWidget(row_w)
+        lay.addLayout(row_l)
         lay.addStretch(1)
 
     def set_value(self, value: str, unit: str = None) -> None:

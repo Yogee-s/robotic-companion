@@ -47,6 +47,8 @@ class ReSpeakerArray:
         self._product_id = config.get("product_id", 0x0018)
         self._led_brightness = config.get("led_brightness", 20)
         self._doa_enabled = config.get("doa_enabled", True)
+        # Mounting calibration: raw DOA − offset = body-frame angle.
+        self.doa_offset_deg = float(config.get("doa_offset_deg", 0.0))
 
         self._device = None
         self._lock = threading.Lock()
@@ -170,7 +172,7 @@ class ReSpeakerArray:
 
     def get_doa(self) -> int:
         """
-        Get Direction of Arrival angle in degrees (0-359).
+        Get raw Direction of Arrival angle in degrees (0-359).
         0° = front, 90° = right, 180° = back, 270° = left.
         Returns simulated value if hardware is not connected.
         """
@@ -179,6 +181,16 @@ class ReSpeakerArray:
                 angle = self._read_parameter("DOAANGLE")
                 self._doa_angle = angle % 360
         return self._doa_angle
+
+    def get_doa_signed(self) -> float:
+        """
+        Body-frame DOA in (-180, +180] with calibration offset applied.
+        0° = robot forward, positive = right, negative = left.
+        """
+        corrected = (self.get_doa() - self.doa_offset_deg) % 360.0
+        if corrected > 180.0:
+            corrected -= 360.0
+        return corrected
 
     def get_vad_status(self) -> bool:
         """Get on-chip Voice Activity Detection status."""

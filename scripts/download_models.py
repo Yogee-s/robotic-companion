@@ -19,10 +19,14 @@ Groups:
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from urllib.request import urlretrieve
+
+from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import GatedRepoError, RepositoryNotFoundError
 
 _ROOT = Path(__file__).resolve().parents[1]
 _MODELS = _ROOT / "models"
@@ -46,49 +50,75 @@ def _download(url: str, dest: Path, min_mb: int = 0) -> bool:
 
 
 def _hf_download(repo: str, path: str, dest: Path) -> bool:
-    url = f"https://huggingface.co/{repo}/resolve/main/{path}"
-    return _download(url, dest)
+    if dest.exists() and dest.stat().st_size > 0:
+        print(f"  ✓ {dest.name} (already present)")
+        return True
+    print(f"  → {dest.name} ← {repo}/{path}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cached = hf_hub_download(repo_id=repo, filename=path)
+        shutil.copy2(cached, dest)
+        print(f"  ✓ {dest.name}  ({dest.stat().st_size / 1e6:.1f} MB)")
+        return True
+    except GatedRepoError:
+        print(f"  ✗ {dest.name}  (gated — accept the license at https://huggingface.co/{repo})")
+        return False
+    except RepositoryNotFoundError:
+        print(f"  ✗ {dest.name}  (repo {repo} not found)")
+        return False
+    except Exception as exc:
+        print(f"  ✗ {dest.name}  ({exc!r})")
+        return False
 
 
 def llm() -> None:
     print("── LLM (Gemma 4) ──")
-    # Preferred: google/gemma-4-e2b-it GGUF converted by community. As of April
-    # 2026, the canonical repos are expected under `google/gemma-4-*-GGUF` on
-    # HuggingFace. If the layout differs, adjust the paths here.
+    # google/gemma-4-*-GGUF is gated; unsloth hosts ungated re-quantizations.
+    # Gemma 4 ships as E2B / E4B (effective-param variants).
     _hf_download(
-        "google/gemma-4-e2b-it-GGUF",
-        "gemma-4-e2b-it-q4_k_m.gguf",
+        "unsloth/gemma-4-E2B-it-GGUF",
+        "gemma-4-E2B-it-Q4_K_M.gguf",
         _MODELS / "gemma-4-e2b-it-q4_k_m.gguf",
     )
     _hf_download(
-        "google/gemma-4-e4b-it-GGUF",
-        "gemma-4-e4b-it-q4_k_m.gguf",
+        "unsloth/gemma-4-E4B-it-GGUF",
+        "gemma-4-E4B-it-Q4_K_M.gguf",
         _MODELS / "gemma-4-e4b-it-q4_k_m.gguf",
     )
 
 
 def vlm() -> None:
     print("── VLM (Moondream-2) ──")
-    _hf_download("vikhyatk/moondream2", "moondream2-text-model-f16.gguf", _MODELS / "moondream2-q4.gguf")
-    _hf_download("vikhyatk/moondream2", "moondream2-mmproj-f16.gguf", _MODELS / "moondream2-mmproj-f16.gguf")
+    # llama.cpp-official conversion; ships F16 only (no Q4 text model).
+    repo = "ggml-org/moondream2-20250414-GGUF"
+    _hf_download(repo, "moondream2-text-model-f16_ct-vicuna.gguf", _MODELS / "moondream2-q4.gguf")
+    _hf_download(repo, "moondream2-mmproj-f16-20250414.gguf", _MODELS / "moondream2-mmproj-f16.gguf")
 
 
 def function_gemma() -> None:
     print("── FunctionGemma-270M ──")
     _hf_download(
-        "google/function-gemma-270m-GGUF",
-        "function-gemma-270m-q4_k_m.gguf",
+        "unsloth/functiongemma-270m-it-GGUF",
+        "functiongemma-270m-it-Q4_K_M.gguf",
         _MODELS / "function-gemma-270m-q4.gguf",
     )
 
 
 def stt() -> None:
     print("── STT (Parakeet-TDT-0.6B-v3) ──")
+    # nvidia/parakeet-tdt-0.6b-v3 ships only .nemo; sherpa-onnx provides the
+    # int8 ONNX export. We rename to plain foo.onnx locally to match
+    # companion/audio/stt.py's expected layout.
     target = _MODELS / "parakeet-tdt-0.6b-v3"
     target.mkdir(parents=True, exist_ok=True)
-    repo = "nvidia/parakeet-tdt-0.6b-v3"
-    for path in ("encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"):
-        _hf_download(repo, path, target / path)
+    repo = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+    for src, dst in (
+        ("encoder.int8.onnx", "encoder.onnx"),
+        ("decoder.int8.onnx", "decoder.onnx"),
+        ("joiner.int8.onnx", "joiner.onnx"),
+        ("tokens.txt", "tokens.txt"),
+    ):
+        _hf_download(repo, src, target / dst)
 
 
 def tts() -> None:
@@ -126,17 +156,29 @@ def vision() -> None:
 
 
 def eou() -> None:
-    print("── Semantic end-of-utterance (LiveKit EOU v0.4.1-intl) ──")
-    target = _MODELS / "eou" / "livekit-eou-v0.4.1-intl.onnx"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _hf_download("livekit/turn-detector", "onnx/model.onnx", target)
+    print("── Semantic end-of-utterance (LiveKit turn-detector, multilingual) ──")
+    target_dir = _MODELS / "eou"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    repo = "livekit/turn-detector"
+    _hf_download(repo, "model_quantized.onnx", target_dir / "livekit-eou-v0.4.1-intl.onnx")
+    for extra in ("tokenizer.json", "config.json", "ort_config.json"):
+        _hf_download(repo, extra, target_dir / extra)
 
 
 def speaker_id() -> None:
     print("── Speaker ID (TitaNet-L) ──")
     target = _MODELS / "speaker_id" / "titanet-l.onnx"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _hf_download("nvidia/speakerverification_en_titanet_large", "titanet_large.onnx", target)
+    if target.exists():
+        print(f"  ✓ {target.name} (already present)")
+        return
+    print(
+        "  (no public ONNX export exists for nvidia/speakerverification_en_titanet_large —\n"
+        "   ships as .nemo only. Export manually with NeMo:\n"
+        "     from nemo.collections.asr.models import EncDecSpeakerLabelModel\n"
+        "     m = EncDecSpeakerLabelModel.from_pretrained('nvidia/speakerverification_en_titanet_large')\n"
+        f"     m.export('{target}')\n"
+        "   then re-run this script.)"
+    )
 
 
 def wake_word() -> None:

@@ -21,7 +21,7 @@ hardware:
   mic_name_hint: ReSpeaker
   speaker_name_hint: ""
   camera_sensor_id: 0
-  screen_serial_port: /dev/ttyCH341USB0
+  screen_serial_port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
   screen_serial_baud: 115200
 
 # ── LLM ─────────────────────────────────────────────────────────────────────
@@ -124,6 +124,7 @@ respeaker:
   product_id: 0x0018
   led_brightness: 20
   doa_enabled: true
+  doa_offset_deg: 0.0                         # set by Audio-tab calibration
 
 # ── Vision (camera + face + emotion) ────────────────────────────────────────
 vision:
@@ -148,7 +149,7 @@ display:
   width: 320                                  # landscape — matches firmware rotation=1
   height: 240
   fullscreen: false
-  serial_port: /dev/ttyCH341USB0
+  serial_port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
   serial_baud: 115200
   auto_dismiss_seconds: 4.0
 
@@ -168,7 +169,7 @@ conversation:
 motor:
   enabled: false                              # master toggle — main.py skips init if false
   sim_only: true                              # force simulator bus even when enabled
-  port: /dev/ttyACM0
+  port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_5B14112846-if00
   baudrate: 1000000
   sync_write: true                            # GroupSyncWrite — coordinated L/R, avoids pan wobble
 
@@ -176,8 +177,8 @@ motor:
   right_servo_id: 2
 
   # Calibration outputs ─────────────────────────────────────────────────────
-  left_zero_tick: 2246  # encoder tick when head is centered + level
-  right_zero_tick: 2036
+  left_zero_tick: 2514  # encoder tick when head is centered + level
+  right_zero_tick: 2594
   left_direction: 1  # ±1, per-motor sign (set by direction test)
   right_direction: -1
   gear_ratio_nominal: 2.0                     # CAD: crown_teeth / pinion_teeth (40/20 = 2.0)
@@ -187,8 +188,8 @@ motor:
   invert_tilt: false
 
   # Soft limits, degrees — head must return to center, no 360° pan
-  pan_limits_deg: [-37.9023, 37.9023]
-  tilt_limits_deg: [-13.9521, 12.0186]
+  pan_limits_deg: [-37.9683, 37.9683]
+  tilt_limits_deg: [-8.0635, 8.0635]
 
   # Motion + safety ─────────────────────────────────────────────────────────
   max_speed_ticks_per_s: 2000

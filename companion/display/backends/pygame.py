@@ -28,6 +28,20 @@ from companion.display.state import (
     Scene,
 )
 
+
+def _draw_zzz(pygame_mod, surf, x: int, y: int) -> None:
+    """Draw three ascending Z's near (x, y) to indicate sleep.
+    Uses line strokes so no font is required."""
+    col = (220, 220, 240)
+    for i, scale in enumerate((1.0, 0.7, 0.45)):
+        sz = int(18 * scale)
+        ox = x - i * int(sz * 0.9)
+        oy = y - i * int(sz * 1.1)
+        # Z shape: top, diagonal, bottom
+        pygame_mod.draw.line(surf, col, (ox, oy), (ox + sz, oy), 3)
+        pygame_mod.draw.line(surf, col, (ox + sz, oy), (ox, oy + sz), 3)
+        pygame_mod.draw.line(surf, col, (ox, oy + sz), (ox + sz, oy + sz), 3)
+
 log = logging.getLogger(__name__)
 
 
@@ -146,48 +160,96 @@ class PygameRenderer:
         w, h = surf.get_size()
         cx, cy = w // 2, h // 2
 
-        # Eyes
+        # Arousal scales the eye size (wide-eyed when excited, narrow when tired).
+        # Range: 0.7× (arousal=-1) → 1.35× (arousal=+1).
+        eye_scale = 1.0 + max(-1.0, min(1.0, fs.arousal)) * 0.35
+        base_eye_rad = int(min(w, h) * 0.06)
+        eye_rad = max(4, int(base_eye_rad * eye_scale))
+
         eye_y = int(cy - h * 0.08)
         eye_dx = int(w * 0.15)
-        eye_rad = int(min(w, h) * 0.06)
         eye_offset = int(fs.gaze_x * eye_rad * 0.6)
+        eye_col = (220, 220, 240)
+        pupil_col = (20, 24, 40)
+
+        # Dedicated sleep face: closed eyes as gentle curves, no brows, small m-mouth, zzz glyph.
+        if fs.sleep:
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                # Curved eyelid: two short segments approximating a smile-shaped lid
+                pygame_mod.draw.arc(
+                    surf, eye_col,
+                    pygame_mod.Rect(ex - eye_rad, eye_y - 4, eye_rad * 2, 8),
+                    0, math.pi, 3,
+                )
+            # Small 'm' mouth
+            mouth_y = int(cy + h * 0.14)
+            mw = int(w * 0.08)
+            pygame_mod.draw.arc(
+                surf, (240, 200, 210),
+                pygame_mod.Rect(cx - mw, mouth_y - 4, 2 * mw, 10),
+                math.pi, 2 * math.pi, 3,
+            )
+            _draw_zzz(pygame_mod, surf, cx + int(w * 0.22), int(cy - h * 0.20))
+            return
+
+        # Eyes
         for side in (-1, 1):
             ex = cx + side * eye_dx + eye_offset
             if blink_closed:
-                pygame_mod.draw.line(surf, (220, 220, 240), (ex - eye_rad, eye_y), (ex + eye_rad, eye_y), 4)
+                pygame_mod.draw.line(surf, eye_col, (ex - eye_rad, eye_y),
+                                     (ex + eye_rad, eye_y), 4)
             else:
-                pygame_mod.draw.circle(surf, (220, 220, 240), (ex, eye_y), eye_rad)
-                pygame_mod.draw.circle(surf, (20, 24, 40), (ex + eye_offset // 2, eye_y), eye_rad // 2)
+                pygame_mod.draw.circle(surf, eye_col, (ex, eye_y), eye_rad)
+                pygame_mod.draw.circle(surf, pupil_col,
+                                       (ex + eye_offset // 2, eye_y), eye_rad // 2)
 
-        # Eyebrows — tilt with emotion
-        brow_tilt = int(fs.valence * -10) + int(fs.arousal * 4)
+        # Eyebrows — tilt with valence (down-inner for happy, up-inner for sad/angry)
+        # Raise with arousal (higher brows = more alert). Amplified.
+        brow_tilt = int(fs.valence * -18) + int(fs.arousal * 6)
+        brow_y_lift = int(max(0.0, fs.arousal) * 6)
         for side in (-1, 1):
             ex = cx + side * eye_dx
             y_off = side * brow_tilt
+            y0 = eye_y - eye_rad - 8 - brow_y_lift
             pygame_mod.draw.line(
-                surf,
-                (240, 240, 255),
-                (ex - eye_rad, eye_y - eye_rad - 6 + y_off),
-                (ex + eye_rad, eye_y - eye_rad - 6 - y_off),
+                surf, (240, 240, 255),
+                (ex - eye_rad, y0 + y_off),
+                (ex + eye_rad, y0 - y_off),
                 3,
             )
 
-        # Mouth — curve with valence, height with viseme
+        # Mouth — valence curves it; arousal opens it; viseme shapes during speech.
         mouth_y = int(cy + h * 0.14)
         mouth_w = int(w * 0.26)
-        mouth_h = {
+        viseme_h = {
             "rest": 6, "mm": 6, "eh": 14,
             "oh": 28, "ahh": 36, "ee": 10,
             "fv": 8, "l": 18,
         }.get(viseme, 10)
-        smile = fs.valence * 14
+        # Arousal opens the mouth (wide excited grin, flat calm mouth).
+        arousal_open = max(0, int(max(0.0, fs.arousal) * 18))
+        mouth_h = viseme_h + arousal_open
+        smile = fs.valence * 18
         rect = pygame_mod.Rect(
             cx - mouth_w // 2,
             mouth_y - mouth_h // 2 - int(smile),
             mouth_w,
             mouth_h + int(abs(smile)),
         )
-        pygame_mod.draw.arc(surf, (240, 200, 210), rect, math.pi, 2 * math.pi, 4)
+        # Draw lower half as arc, but if aroused+happy, fill a wider smile.
+        if fs.valence > 0.4 and fs.arousal > 0.4:
+            # Big excited grin — filled arc
+            pygame_mod.draw.arc(surf, (240, 200, 210), rect, math.pi, 2 * math.pi, 5)
+            # Show teeth hint
+            pygame_mod.draw.line(
+                surf, (240, 200, 210),
+                (rect.left + 8, rect.centery),
+                (rect.right - 8, rect.centery),
+                2,
+            )
+        else:
+            pygame_mod.draw.arc(surf, (240, 200, 210), rect, math.pi, 2 * math.pi, 4)
 
     @staticmethod
     def _draw_privacy_band(pygame_mod, surf) -> None:

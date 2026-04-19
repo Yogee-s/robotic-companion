@@ -50,6 +50,15 @@ pip install --upgrade pip wheel setuptools
 log "Installing Python dependencies..."
 pip install -r requirements.txt
 
+# kokoro-onnx: metadata pins numpy>=2 (conflicts with Jetson torch's numpy<2),
+# but runtime works on numpy 1.26.x. Install with --no-deps to skip the pin.
+if ! python -c "import kokoro_onnx" 2>/dev/null; then
+    log "Installing kokoro-onnx (no-deps, Jetson numpy workaround)..."
+    pip install "kokoro-onnx>=0.4.0" --no-deps
+else
+    ok "kokoro-onnx already installed"
+fi
+
 # ── 3. CUDA-specific wheels from Jetson AI Lab ─────────────────────────────
 JETSON_INDEX="https://pypi.jetson-ai-lab.io/jp6/cu126"
 
@@ -74,26 +83,30 @@ else
     ok "llama-cpp-python already installed"
 fi
 
-# ── 4. WCH CH341 serial driver (for the ESP32 screen) ──────────────────────
-if ! lsmod | grep -q ch341; then
-    log "Building WCH CH341 kernel driver..."
+# ── 4. WCH CH340/CH341 serial driver (for the ESP32 screen) ────────────────
+# juliagoda's fork builds as module "ch34x" (not "ch341"). This rebuild
+# step must be re-run after every kernel/JetPack upgrade — out-of-tree
+# modules don't survive kernel updates.
+if ! lsmod | grep -q ch34; then
+    log "Building WCH CH34x kernel driver..."
     tmp="$(mktemp -d)"
     (
         cd "$tmp"
-        git clone --depth=1 https://github.com/juliagoda/CH341SER.git || \
-            git clone --depth=1 https://github.com/WCHSoftGroup/ch341ser_linux.git CH341SER
+        git clone --depth=1 https://github.com/juliagoda/CH341SER.git CH341SER
         cd CH341SER
         make clean >/dev/null 2>&1 || true
         make
         sudo make install
     )
-    sudo modprobe ch341
-    if ! grep -q ch341 /etc/modules-load.d/ch341.conf 2>/dev/null; then
-        echo ch341 | sudo tee /etc/modules-load.d/ch341.conf >/dev/null
+    sudo modprobe ch34x
+    if ! grep -q ch34x /etc/modules-load.d/ch34x.conf 2>/dev/null; then
+        echo ch34x | sudo tee /etc/modules-load.d/ch34x.conf >/dev/null
     fi
-    ok "CH341 driver installed"
+    # Clean up any stale ch341 entry from older setups
+    sudo rm -f /etc/modules-load.d/ch341.conf
+    ok "CH34x driver installed"
 else
-    ok "CH341 driver already loaded"
+    ok "CH34x driver already loaded"
 fi
 
 # ── 5. ReSpeaker USB udev rule ─────────────────────────────────────────────

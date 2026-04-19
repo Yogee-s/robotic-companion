@@ -151,6 +151,9 @@ class ReSpeakerConfig:
     product_id: int = 0x0018
     led_brightness: int = 20
     doa_enabled: bool = True
+    # Mounting offset in degrees, subtracted from raw DOA so 0° = body forward.
+    # Calibrate from the Audio tab in the debug GUI.
+    doa_offset_deg: float = 0.0
 
 
 @dataclass

@@ -20,9 +20,16 @@ if ! command -v pio >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# ── 2. Try the usual suspects first ───────────────────────────────────
+# ── 2. Pick the screen by USB identity, not by enumeration order ──────
+# Screen uses a CH340 chip (1a86:7523) that shows up in /dev/serial/by-id/
+# as `usb-1a86_USB_Serial-if00-port0`. We prefer that stable path so we
+# never accidentally flash another serial device (e.g. the CH343 motor
+# controller on /dev/ttyACM0).
 probe_port() {
-    for name in ttyCH341USB0 ttyUSB0 ttyACM0 ttyUSB1 ttyCH341USB1; do
+    for link in /dev/serial/by-id/usb-1a86_USB_Serial-if*; do
+        [ -e "$link" ] && { readlink -f "$link"; return 0; }
+    done
+    for name in ttyCH341USB0 ttyUSB0 ttyUSB1 ttyCH341USB1; do
         if [ -e "/dev/$name" ]; then
             echo "/dev/$name"
             return 0

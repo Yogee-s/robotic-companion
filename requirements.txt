@@ -24,7 +24,9 @@ PyAudio>=0.2.13
 faster-whisper>=1.0.0              # CPU fallback for STT; CUDA via ctranslate2
 
 # ── Text-to-Speech ──
-kokoro-onnx>=0.4.0                 # primary: natural, human-like voice
+# kokoro-onnx is installed by scripts/setup.sh with --no-deps.
+# Its metadata pins numpy>=2.0.2, which conflicts with the Jetson torch
+# wheel's numpy<2 requirement. Runtime works fine on numpy 1.26.x.
 piper-tts>=1.2.0                   # fast fallback
 pathvalidate>=3.0                  # piper CLI fallback dep
 
