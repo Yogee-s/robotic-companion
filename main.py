@@ -552,9 +552,25 @@ def _run_headless(subsystems) -> int:
                 # Space pressed — begin capture.
                 audio_in = conversation._audio_input
                 chunks: list = []
+                first_chunk_at: list = [None]
 
                 def _tap(chunk):
+                    if first_chunk_at[0] is None:
+                        first_chunk_at[0] = time.time()
                     chunks.append(chunk.copy())
+
+                # Pre-flight: is the capture thread even alive?
+                cap_thread = getattr(audio_in, "_thread", None)
+                cap_alive = cap_thread is not None and cap_thread.is_alive()
+                last_chunk_age = (
+                    time.time() - audio_in.last_enqueue_ts
+                    if getattr(audio_in, "last_enqueue_ts", 0.0) > 0.0
+                    else float("inf")
+                )
+                log.info(
+                    "PTT: capture thread alive=%s, last chunk %.2fs ago",
+                    cap_alive, last_chunk_age,
+                )
 
                 audio_in.add_tap(_tap)
                 record_start = time.time()
@@ -585,8 +601,24 @@ def _run_headless(subsystems) -> int:
                 finally:
                     audio_in.remove_tap(_tap)
 
+                hold_s = time.time() - record_start
+                first_chunk_ms = (
+                    (first_chunk_at[0] - record_start) * 1000.0
+                    if first_chunk_at[0] is not None
+                    else None
+                )
+                log.info(
+                    "PTT: released after %.2fs — %d chunks captured, first chunk @ %s",
+                    hold_s, len(chunks),
+                    f"+{first_chunk_ms:.0f}ms" if first_chunk_ms is not None else "(never)",
+                )
+
                 if not chunks:
-                    log.warning("PTT: no audio captured (mic not delivering?)")
+                    log.warning(
+                        "PTT: no audio captured. Capture thread alive=%s. "
+                        "If False the PyAudio stream died earlier.",
+                        cap_thread is not None and cap_thread.is_alive(),
+                    )
                     try:
                         conversation._set_state(ConversationState.IDLE_WATCHING)
                     except Exception:

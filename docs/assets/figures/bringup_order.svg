@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700" role="img" aria-labelledby="title">
+  <title id="title">Bring-up order — why the LLM loads first</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .critical { fill: #313244; stroke: #f38ba8; stroke-width: 2.5; rx: 8; ry: 8; }
+    .prim    { fill: #313244; stroke: #89b4fa; stroke-width: 2; rx: 8; ry: 8; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .num { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 20px; font-weight: 700; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .arr { fill: #89b4fa; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="700" height="700"/>
+
+  <text class="tb" x="350" y="30" text-anchor="middle">main.py bring-up order — top to bottom</text>
+  <text class="sub" x="350" y="50" text-anchor="middle">red outline = LLM (must allocate contiguous VRAM first)</text>
+
+  <!-- Sequence -->
+  <g>
+    <text class="num" x="40" y="104">1</text>
+    <rect class="box" x="75" y="80" width="540" height="44"/>
+    <text class="tb"  x="90" y="108">Load config · set up logging · readiness gate (audit model files)</text>
+  </g>
+  <path class="line" d="M 345 124 L 345 144" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="174">2</text>
+    <rect class="box" x="75" y="150" width="540" height="44"/>
+    <text class="tb"  x="90" y="178">EventBus · GPUArbiter · TelemetryRecorder</text>
+  </g>
+  <path class="line" d="M 345 194 L 345 214" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="244">3</text>
+    <rect class="critical" x="75" y="220" width="540" height="44"/>
+    <text class="tb"  x="90" y="248">LLM engine (quantised · needs contiguous VRAM block)</text>
+  </g>
+  <path class="line" d="M 345 264 L 345 284" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="314">4</text>
+    <rect class="box" x="75" y="290" width="540" height="44"/>
+    <text class="tb"  x="90" y="318">Audio stack · VAD · STT · TTS · ReSpeaker · speaker ID</text>
+  </g>
+  <path class="line" d="M 345 334 L 345 354" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="384">5</text>
+    <rect class="box" x="75" y="360" width="540" height="44"/>
+    <text class="tb"  x="90" y="388">Vision stack · camera · face detection</text>
+  </g>
+  <path class="line" d="M 345 404 L 345 424" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="454">6</text>
+    <rect class="box" x="75" y="430" width="540" height="44"/>
+    <text class="tb"  x="90" y="458">Motor stack · homing · face-tracker wire-up</text>
+  </g>
+  <path class="line" d="M 345 474 L 345 494" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="524">7</text>
+    <rect class="prim" x="75" y="500" width="540" height="44"/>
+    <text class="tb"  x="90" y="528">ConversationManager (turn orchestrator)</text>
+  </g>
+  <path class="line" d="M 345 544 L 345 564" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="594">8</text>
+    <rect class="prim" x="75" y="570" width="540" height="44"/>
+    <text class="tb"  x="90" y="598">BehaviorEngine · Coordinator · HealthMonitor</text>
+  </g>
+  <path class="line" d="M 345 614 L 345 634" marker-end="url(#a)"/>
+
+  <g>
+    <text class="num" x="40" y="664">9</text>
+    <rect class="box" x="75" y="640" width="540" height="44"/>
+    <text class="tb"  x="90" y="668">Renderer (ESP32 serial) · startup greeting · UI or headless loop</text>
+  </g>
+</svg>

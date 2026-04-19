@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" role="img" aria-labelledby="title">
+  <title id="title">Conversation state machine</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .state { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 10; ry: 10; }
+    .state-active { fill: #313244; stroke: #89b4fa; stroke-width: 2.5; rx: 10; ry: 10; }
+    .state-rec   { fill: #313244; stroke: #f9e2af; stroke-width: 1.8; rx: 10; ry: 10; stroke-dasharray: 4 3; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .hl  { fill: #a6e3a1; font-family: ui-monospace, Consolas, monospace; font-size: 11px; font-weight: 700; }
+    .fwd  { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .back { stroke: #6c7086; stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; }
+    .canon { stroke: #a6e3a1; stroke-width: 2.5; fill: none; }
+    .arr { fill: #89b4fa; }
+    .arrg { fill: #a6e3a1; }
+    .arrm { fill: #6c7086; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrg"/>
+    </marker>
+    <marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrm"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1120" height="560"/>
+
+  <text class="tb" x="560" y="30" text-anchor="middle">Conversation state machine — canonical turn path (green); return (blue); interrupt / error (dashed)</text>
+
+  <!-- Five states laid out with generous horizontal gaps so arrow labels fit in between. -->
+  <!-- Box geometry: all at y=230, height=90. Arrow labels sit just above boxes at y=215. -->
+
+  <!-- IDLE_WATCHING -->
+  <rect class="state-active" x="30" y="230" width="160" height="90"/>
+  <text class="tb"  x="110" y="265" text-anchor="middle">IDLE_WATCHING</text>
+  <text class="sub" x="110" y="286" text-anchor="middle">camera + mic on</text>
+  <text class="sub" x="110" y="303" text-anchor="middle">face tracking</text>
+
+  <!-- LISTENING -->
+  <rect class="state" x="260" y="230" width="160" height="90"/>
+  <text class="tb"  x="340" y="265" text-anchor="middle">LISTENING</text>
+  <text class="sub" x="340" y="286" text-anchor="middle">VAD speech start</text>
+  <text class="sub" x="340" y="303" text-anchor="middle">buffering PCM</text>
+
+  <!-- CAPTURING_INTENT -->
+  <rect class="state" x="490" y="230" width="200" height="90"/>
+  <text class="tb"  x="590" y="265" text-anchor="middle">CAPTURING_INTENT</text>
+  <text class="sub" x="590" y="286" text-anchor="middle">VAD end → STT</text>
+  <text class="sub" x="590" y="303" text-anchor="middle">engagement gate</text>
+
+  <!-- THINKING -->
+  <rect class="state" x="760" y="230" width="160" height="90"/>
+  <text class="tb"  x="840" y="265" text-anchor="middle">THINKING</text>
+  <text class="sub" x="840" y="286" text-anchor="middle">LLM generate</text>
+  <text class="sub" x="840" y="303" text-anchor="middle">streaming tokens</text>
+
+  <!-- SPEAKING -->
+  <rect class="state" x="960" y="230" width="150" height="90"/>
+  <text class="tb"  x="1035" y="265" text-anchor="middle">SPEAKING</text>
+  <text class="sub" x="1035" y="286" text-anchor="middle">TTS to speaker</text>
+  <text class="sub" x="1035" y="303" text-anchor="middle">face visemes</text>
+
+  <!-- Forward canonical arrows (green) — drawn in the 70-px gaps between boxes -->
+  <path class="canon" d="M 190 275 L 260 275" marker-end="url(#g)"/>
+  <text class="hl" x="225" y="267" text-anchor="middle">speech start</text>
+
+  <path class="canon" d="M 420 275 L 490 275" marker-end="url(#g)"/>
+  <text class="hl" x="455" y="267" text-anchor="middle">speech end</text>
+
+  <path class="canon" d="M 690 275 L 760 275" marker-end="url(#g)"/>
+  <text class="hl" x="725" y="267" text-anchor="middle">transcript</text>
+
+  <path class="canon" d="M 920 275 L 960 275" marker-end="url(#g)"/>
+  <text class="hl" x="940" y="267" text-anchor="middle">tokens</text>
+
+  <!-- Return arrow (SPEAKING → IDLE) along the top arc -->
+  <path class="fwd" d="M 1035 230 C 1035 110, 110 110, 110 230" marker-end="url(#a)"/>
+  <text class="lbl" x="560" y="100" text-anchor="middle">done → IDLE_WATCHING</text>
+
+  <!-- Barge-in arrow along the bottom arc (from SPEAKING back to LISTENING) -->
+  <path class="back" d="M 1035 320 C 1035 430, 340 430, 340 320" marker-end="url(#m)"/>
+  <text class="sub" x="690" y="425" text-anchor="middle">barge-in / new speech → LISTENING</text>
+
+  <!-- RECOVERING detour (below the row, below the barge-in arc) -->
+  <rect class="state-rec" x="490" y="470" width="200" height="50"/>
+  <text class="tb"  x="590" y="496" text-anchor="middle">RECOVERING</text>
+  <text class="sub" x="590" y="512" text-anchor="middle">error / cancel path</text>
+
+  <!-- error path: THINKING → RECOVERING -->
+  <path class="back" d="M 840 320 L 840 455 L 690 455 L 690 470" marker-end="url(#m)"/>
+  <text class="sub" x="820" y="450">error path</text>
+
+  <!-- RECOVERING → IDLE_WATCHING -->
+  <path class="back" d="M 490 495 L 110 495 L 110 320" marker-end="url(#m)"/>
+  <text class="sub" x="300" y="490">recovered → IDLE_WATCHING</text>
+
+  <!-- Legend -->
+  <rect x="30" y="540" width="16" height="4" fill="#a6e3a1"/>
+  <text class="sub" x="52" y="546">canonical turn</text>
+  <rect x="180" y="540" width="16" height="4" fill="#89b4fa"/>
+  <text class="sub" x="202" y="546">return to idle</text>
+  <rect x="320" y="539" width="16" height="2" fill="#6c7086" stroke="#6c7086" stroke-dasharray="4 3"/>
+  <text class="sub" x="342" y="546">interrupt / error</text>
+</svg>

@@ -101,31 +101,40 @@ class AudioInput:
             return
         self._running = True
 
-        # Try PyAudio
+        # Try PyAudio with the matched device index first; if that fails
+        # (e.g. ReSpeaker UAC1.0 is natively 6ch and won't negotiate
+        # mono, or PulseAudio has the raw hw node locked) retry with no
+        # explicit index so PyAudio picks the default, which on Jetson
+        # with Pulse running routes through Pulse (auto-resamples + mixes
+        # to mono).
         if self._pa is not None:
-            try:
-                kwargs = {
-                    "format": pyaudio.paInt16,
-                    "channels": self.channels,
-                    "rate": self.sample_rate,
-                    "input": True,
-                    "frames_per_buffer": self.chunk_size,
-                }
-                if self._device_index is not None:
-                    kwargs["input_device_index"] = self._device_index
+            base_kwargs = {
+                "format": pyaudio.paInt16,
+                "channels": self.channels,
+                "rate": self.sample_rate,
+                "input": True,
+                "frames_per_buffer": self.chunk_size,
+            }
+            attempts = []
+            if self._device_index is not None:
+                attempts.append(("index=%d" % self._device_index, {**base_kwargs, "input_device_index": self._device_index}))
+            attempts.append(("default", base_kwargs))
 
-                self._stream = self._pa.open(**kwargs)
-                self._thread = threading.Thread(
-                    target=self._capture_pyaudio, daemon=True
-                )
-                self._thread.start()
-                logger.info("Audio input started (PyAudio).")
-                return
-            except Exception as e:
-                logger.warning(f"PyAudio open failed: {e}. Falling back to arecord.")
-                self._stream = None
+            for label, kwargs in attempts:
+                try:
+                    self._stream = self._pa.open(**kwargs)
+                    self._thread = threading.Thread(
+                        target=self._capture_pyaudio, daemon=True
+                    )
+                    self._thread.start()
+                    logger.info("Audio input started (PyAudio, %s).", label)
+                    return
+                except Exception as e:
+                    logger.warning("PyAudio open failed (%s): %s", label, e)
+                    self._stream = None
 
-        # Fallback: arecord
+        # Fallback: arecord via PulseAudio (device `pulse`), which
+        # accepts mono/16kHz regardless of the card's native channels.
         self._use_arecord = True
         self._thread = threading.Thread(target=self._capture_arecord, daemon=True)
         self._thread.start()
@@ -144,20 +153,27 @@ class AudioInput:
                 break
 
     def _capture_arecord(self):
-        """Continuous capture via arecord subprocess."""
+        """Continuous capture via arecord subprocess.
+
+        Tries `-D pulse` first. The ReSpeaker UAC1.0 native format is
+        s16le 6ch 16kHz, and direct hw:/plughw: opens fail when
+        PulseAudio is holding the card (it always is on desktop Jetson).
+        Going through Pulse lets the daemon do the channel mix-down
+        and gives us mono 16kHz cleanly. Falls back to plughw/hw if
+        Pulse isn't available.
+        """
+        alsa_dev = "pulse"
         try:
-            alsa_dev = self._detect_alsa_input()
             cmd = [
                 "arecord", "-q", "-f", "S16_LE",
                 "-r", str(self.sample_rate),
                 "-c", str(self.channels), "-t", "raw",
+                "-D", alsa_dev,
             ]
-            if alsa_dev:
-                cmd.extend(["-D", alsa_dev])
-                logger.info(f"arecord using device: {alsa_dev}")
+            logger.info("arecord using device: %s", alsa_dev)
 
             self._arecord_proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             bytes_per_chunk = self.chunk_size * 2 * self.channels
 
@@ -167,6 +183,14 @@ class AudioInput:
                     break
                 audio = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
                 self._enqueue(audio)
+
+            rc = self._arecord_proc.poll()
+            if rc is not None and rc != 0 and self._running:
+                try:
+                    err = self._arecord_proc.stderr.read().decode("utf-8", "replace")
+                except Exception:
+                    err = ""
+                logger.error("arecord exited with code %d: %s", rc, err.strip()[:400])
         except Exception as e:
             if self._running:
                 logger.error(f"arecord error: {e}")

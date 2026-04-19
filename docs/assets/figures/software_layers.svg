@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title">
+  <title id="title">Software architecture — top-down layers</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .layer { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .hdr { fill: #89b4fa; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .tline { stroke: #a6e3a1; stroke-width: 2; fill: none; }
+    .arr  { fill: #89b4fa; }
+    .tarr { fill: #a6e3a1; }
+  </style>
+  <rect class="bg" width="900" height="560"/>
+  <defs>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+    <marker id="bb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="tarr"/>
+    </marker>
+  </defs>
+
+  <!-- Row 1: leaf subsystems -->
+  <text class="hdr" x="40" y="42">LEAF SUBSYSTEMS</text>
+  <rect class="layer" x="40"  y="56" width="180" height="80"/>
+  <text class="tb"  x="130" y="88" text-anchor="middle">Audio</text>
+  <text class="sub" x="130" y="108" text-anchor="middle">I/O · VAD · STT · TTS</text>
+  <text class="sub" x="130" y="124" text-anchor="middle">barge-in · ReSpeaker</text>
+
+  <rect class="layer" x="240" y="56" width="180" height="80"/>
+  <text class="tb"  x="330" y="88" text-anchor="middle">Vision</text>
+  <text class="sub" x="330" y="108" text-anchor="middle">camera · YOLO face</text>
+  <text class="sub" x="330" y="124" text-anchor="middle">tracker · pipeline</text>
+
+  <rect class="layer" x="440" y="56" width="180" height="80"/>
+  <text class="tb"  x="530" y="88" text-anchor="middle">LLM / Reasoning</text>
+  <text class="sub" x="530" y="108" text-anchor="middle">llama-cpp engine</text>
+  <text class="sub" x="530" y="124" text-anchor="middle">prompt · router</text>
+
+  <rect class="layer" x="640" y="56" width="220" height="80"/>
+  <text class="tb"  x="750" y="88" text-anchor="middle">Motor &amp; Display</text>
+  <text class="sub" x="750" y="108" text-anchor="middle">ST3215 bus · kinematics</text>
+  <text class="sub" x="750" y="124" text-anchor="middle">ESP32 renderer</text>
+
+  <!-- Row 2: orchestration -->
+  <text class="hdr" x="40" y="186">ORCHESTRATION</text>
+  <rect class="layer" x="40"  y="200" width="390" height="80" style="stroke:#89b4fa;stroke-width:2.2"/>
+  <text class="tb"  x="235" y="232" text-anchor="middle">ConversationManager</text>
+  <text class="sub" x="235" y="252" text-anchor="middle">turn lifecycle · state machine</text>
+  <text class="sub" x="235" y="268" text-anchor="middle">engagement gates · streaming</text>
+
+  <rect class="layer" x="460" y="200" width="400" height="80" style="stroke:#89b4fa;stroke-width:2.2"/>
+  <text class="tb"  x="660" y="232" text-anchor="middle">BehaviorEngine + Coordinator</text>
+  <text class="sub" x="660" y="252" text-anchor="middle">20 Hz face + head tick</text>
+  <text class="sub" x="660" y="268" text-anchor="middle">HealthMonitor · telemetry</text>
+
+  <!-- Row 3: core plumbing -->
+  <text class="hdr" x="40" y="326">CORE PLUMBING</text>
+  <rect class="layer" x="40"  y="340" width="820" height="80" style="stroke:#a6e3a1;stroke-width:2.2"/>
+  <text class="tb"  x="450" y="372" text-anchor="middle">EventBus · GPU Arbiter · Config · Readiness · Logging · Telemetry</text>
+  <text class="sub" x="450" y="392" text-anchor="middle">async events · realtime/background priority · model-path audits · JSONL traces</text>
+  <text class="sub" x="450" y="408" text-anchor="middle">shared signal plane — everything talks through here</text>
+
+  <!-- Row 4: entry point -->
+  <text class="hdr" x="40" y="466">ENTRY POINT</text>
+  <rect class="layer" x="300" y="480" width="300" height="54" style="stroke:#f9e2af;stroke-width:2.2"/>
+  <text class="tb"  x="450" y="512" text-anchor="middle">main.py — bring-up and shutdown</text>
+
+  <!-- Arrows: row 1 boxes down to row 2 -->
+  <!-- audio/vision → ConversationManager -->
+  <path class="line" d="M 130 136 L 130 170 L 235 170 L 235 200" marker-end="url(#aa)"/>
+  <path class="line" d="M 330 136 L 330 170 L 280 170 L 280 200" marker-end="url(#aa)"/>
+  <!-- LLM → ConversationManager -->
+  <path class="line" d="M 530 136 L 530 170 L 360 170 L 360 200" marker-end="url(#aa)"/>
+  <!-- motor/display → BehaviorEngine -->
+  <path class="line" d="M 750 136 L 750 170 L 660 170 L 660 200" marker-end="url(#aa)"/>
+
+  <!-- Row 2 down to row 3 (EventBus) -->
+  <path class="tline" d="M 235 280 L 235 340" marker-end="url(#bb)"/>
+  <path class="tline" d="M 660 280 L 660 340" marker-end="url(#bb)"/>
+
+  <!-- Row 3 up into row 2 (tiny arrow for duplex) -->
+  <!-- omitted to keep figure planar; label clarifies -->
+
+  <!-- Row 4 up to row 3 -->
+  <path class="line" d="M 450 480 L 450 420" marker-end="url(#aa)"/>
+
+  <!-- Legend -->
+  <rect x="40" y="488" width="12" height="4" fill="#89b4fa"/>
+  <text class="sub" x="58" y="494">data / call</text>
+  <rect x="140" y="488" width="12" height="4" fill="#a6e3a1"/>
+  <text class="sub" x="158" y="494">event</text>
+  <rect x="210" y="488" width="12" height="4" fill="#f9e2af"/>
+  <text class="sub" x="228" y="494">wires up</text>
+</svg>

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" role="img" aria-labelledby="title">
+  <title id="title">Hardware topology</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .hub { fill: #313244; stroke: #89b4fa; stroke-width: 2.5; rx: 10; ry: 10; }
+    .t   { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .hblbl { fill: #89b4fa; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  </style>
+  <rect class="bg" width="900" height="540"/>
+
+  <!-- Central hub: Jetson -->
+  <rect class="hub" x="340" y="220" width="220" height="100"/>
+  <text class="tb" x="450" y="258" text-anchor="middle">Jetson Orin Nano</text>
+  <text class="sub" x="450" y="278" text-anchor="middle">8 GB unified memory</text>
+  <text class="sub" x="450" y="296" text-anchor="middle">JetPack 6 · Ubuntu 22.04</text>
+  <text class="hblbl" x="450" y="314" text-anchor="middle">COMPUTE</text>
+
+  <!-- Top-left: CSI camera -->
+  <rect class="box" x="40" y="50" width="220" height="90"/>
+  <text class="tb" x="150" y="82" text-anchor="middle">IMX219 CSI Camera</text>
+  <text class="sub" x="150" y="102" text-anchor="middle">640 × 480 @ 30 fps</text>
+  <text class="sub" x="150" y="120" text-anchor="middle">wide-angle · CSI ribbon</text>
+
+  <!-- Top-right: ReSpeaker -->
+  <rect class="box" x="640" y="50" width="220" height="90"/>
+  <text class="tb" x="750" y="82" text-anchor="middle">ReSpeaker 4-mic array</text>
+  <text class="sub" x="750" y="102" text-anchor="middle">USB XMOS XVF-3800</text>
+  <text class="sub" x="750" y="120" text-anchor="middle">DOA · 12 RGB LEDs</text>
+
+  <!-- Left-middle: ESP32 display -->
+  <rect class="box" x="40" y="230" width="220" height="90"/>
+  <text class="tb" x="150" y="262" text-anchor="middle">ESP32 Face Screen</text>
+  <text class="sub" x="150" y="282" text-anchor="middle">Diymore 2.8" TFT · ILI9341</text>
+  <text class="sub" x="150" y="300" text-anchor="middle">XPT2046 touch · CH340</text>
+
+  <!-- Right-middle: USB speaker -->
+  <rect class="box" x="640" y="230" width="220" height="90"/>
+  <text class="tb" x="750" y="262" text-anchor="middle">USB Speaker</text>
+  <text class="sub" x="750" y="282" text-anchor="middle">aplay streaming</text>
+  <text class="sub" x="750" y="300" text-anchor="middle">TTS audio out</text>
+
+  <!-- Bottom-centre: Bus adapter -->
+  <rect class="box" x="340" y="400" width="220" height="90"/>
+  <text class="tb" x="450" y="432" text-anchor="middle">CH343 Bus Adapter</text>
+  <text class="sub" x="450" y="452" text-anchor="middle">Waveshare USB-serial</text>
+  <text class="sub" x="450" y="470" text-anchor="middle">1 Mbaud half-duplex</text>
+
+  <!-- Bottom-left: Left servo -->
+  <rect class="box" x="40" y="400" width="220" height="90"/>
+  <text class="tb" x="150" y="432" text-anchor="middle">ST3215 Servo L (id 1)</text>
+  <text class="sub" x="150" y="452" text-anchor="middle">20-tooth bevel pinion</text>
+  <text class="sub" x="150" y="470" text-anchor="middle">pitch + pan (mirrored)</text>
+
+  <!-- Bottom-right: Right servo -->
+  <rect class="box" x="640" y="400" width="220" height="90"/>
+  <text class="tb" x="750" y="432" text-anchor="middle">ST3215 Servo R (id 2)</text>
+  <text class="sub" x="750" y="452" text-anchor="middle">20-tooth bevel pinion</text>
+  <text class="sub" x="750" y="470" text-anchor="middle">pitch − pan (mirrored)</text>
+
+  <!-- Connections (orthogonal, no crossings) -->
+  <!-- Camera → Jetson (left side of hub top) -->
+  <path class="line" d="M 150 140 L 150 190 L 410 190 L 410 220"/>
+  <text class="lbl" x="156" y="186">CSI ribbon</text>
+
+  <!-- ReSpeaker → Jetson (right side of hub top) -->
+  <path class="line" d="M 750 140 L 750 190 L 490 190 L 490 220"/>
+  <text class="lbl" x="744" y="186" text-anchor="end">USB 2.0</text>
+
+  <!-- ESP32 → Jetson (hub left) -->
+  <path class="line" d="M 260 275 L 340 275"/>
+  <text class="lbl" x="270" y="268">USB-serial 115 k</text>
+
+  <!-- Speaker → Jetson (hub right) -->
+  <path class="line" d="M 640 275 L 560 275"/>
+  <text class="lbl" x="630" y="268" text-anchor="end">USB audio</text>
+
+  <!-- Bus adapter → Jetson (hub bottom) -->
+  <path class="line" d="M 450 400 L 450 320"/>
+  <text class="lbl" x="456" y="360">USB 2.0</text>
+
+  <!-- Left servo → Bus adapter -->
+  <path class="line" d="M 260 445 L 340 445"/>
+  <text class="lbl" x="268" y="438">Feetech bus</text>
+
+  <!-- Bus adapter → Right servo -->
+  <path class="line" d="M 560 445 L 640 445"/>
+  <text class="lbl" x="570" y="438">Feetech bus</text>
+</svg>

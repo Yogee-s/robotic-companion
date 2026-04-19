@@ -23,3 +23,6 @@ config.secrets.yaml
 
 # Firmware build artefacts
 firmware/**/.pio/
+
+
+/assets

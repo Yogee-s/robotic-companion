@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 620" role="img" aria-labelledby="title">
+  <title id="title">Audio pipeline — top-down</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .io  { fill: #45475a; stroke: #89b4fa; stroke-width: 2; rx: 8; ry: 8; }
+    .ml  { fill: #313244; stroke: #f9e2af; stroke-width: 1.5; rx: 8; ry: 8; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .arr { fill: #89b4fa; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="620"/>
+
+  <text class="tb" x="280" y="28" text-anchor="middle">Audio subsystem — capture and synthesis</text>
+
+  <!-- In: Microphone -->
+  <rect class="io" x="190" y="60" width="180" height="56"/>
+  <text class="tb" x="280" y="86" text-anchor="middle">ReSpeaker 4-mic</text>
+  <text class="sub" x="280" y="104" text-anchor="middle">16 kHz mono · USB</text>
+
+  <!-- Capture -->
+  <rect class="box" x="190" y="146" width="180" height="56"/>
+  <text class="tb" x="280" y="170" text-anchor="middle">AudioInput</text>
+  <text class="sub" x="280" y="188" text-anchor="middle">PyAudio · 512-sample chunks</text>
+
+  <!-- VAD -->
+  <rect class="ml" x="190" y="232" width="180" height="56"/>
+  <text class="tb" x="280" y="256" text-anchor="middle">Silero VAD v5</text>
+  <text class="sub" x="280" y="274" text-anchor="middle">32 ms windows · thr 0.35</text>
+
+  <!-- STT -->
+  <rect class="ml" x="190" y="318" width="180" height="56"/>
+  <text class="tb" x="280" y="342" text-anchor="middle">Parakeet TDT STT</text>
+  <text class="sub" x="280" y="360" text-anchor="middle">CUDA ONNX · streaming</text>
+
+  <!-- ConversationManager -->
+  <rect class="box" x="50" y="404" width="460" height="56" style="stroke:#89b4fa;stroke-width:2"/>
+  <text class="tb" x="280" y="428" text-anchor="middle">ConversationManager</text>
+  <text class="sub" x="280" y="446" text-anchor="middle">turn lifecycle, routes transcript to LLM</text>
+
+  <!-- TTS -->
+  <rect class="ml" x="190" y="490" width="180" height="56"/>
+  <text class="tb" x="280" y="514" text-anchor="middle">Piper TTS</text>
+  <text class="sub" x="280" y="532" text-anchor="middle">CPU · 24 kHz output</text>
+
+  <!-- Out: Speaker -->
+  <rect class="io" x="190" y="564" width="180" height="44"/>
+  <text class="tb" x="280" y="590" text-anchor="middle">Speaker · aplay stream</text>
+
+  <!-- Arrows down -->
+  <path class="line" d="M 280 116 L 280 146" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="134">PCM 16 kHz</text>
+
+  <path class="line" d="M 280 202 L 280 232" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="220">chunk</text>
+
+  <path class="line" d="M 280 288 L 280 318" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="306">speech clip</text>
+
+  <path class="line" d="M 280 374 L 280 404" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="392">transcript</text>
+
+  <path class="line" d="M 280 460 L 280 490" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="478">reply text</text>
+
+  <path class="line" d="M 280 546 L 280 564" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="560">PCM 24 kHz</text>
+</svg>

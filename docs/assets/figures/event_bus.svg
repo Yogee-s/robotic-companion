@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title">
+  <title id="title">EventBus fan-out</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .bus { fill: #45475a; stroke: #89b4fa; stroke-width: 2.5; rx: 12; ry: 12; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .hdr { fill: #89b4fa; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.8px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .arr { fill: #89b4fa; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="560"/>
+
+  <text class="tb" x="500" y="30" text-anchor="middle">EventBus — publishers on the left, bus in the middle, subscribers on the right</text>
+
+  <!-- Column headers -->
+  <text class="hdr" x="150" y="64" text-anchor="middle">PUBLISHERS</text>
+  <text class="hdr" x="500" y="64" text-anchor="middle">BUS + EVENTS</text>
+  <text class="hdr" x="850" y="64" text-anchor="middle">SUBSCRIBERS</text>
+
+  <!-- Publishers (left column, stacked) -->
+  <rect class="box" x="40" y="90"  width="220" height="50"/>
+  <text class="tb" x="150" y="122" text-anchor="middle">ConversationManager</text>
+
+  <rect class="box" x="40" y="160" width="220" height="50"/>
+  <text class="tb" x="150" y="192" text-anchor="middle">BehaviorEngine</text>
+
+  <rect class="box" x="40" y="230" width="220" height="50"/>
+  <text class="tb" x="150" y="262" text-anchor="middle">HealthMonitor</text>
+
+  <rect class="box" x="40" y="300" width="220" height="50"/>
+  <text class="tb" x="150" y="332" text-anchor="middle">VisionPipeline</text>
+
+  <rect class="box" x="40" y="370" width="220" height="50"/>
+  <text class="tb" x="150" y="402" text-anchor="middle">TTS engine</text>
+
+  <!-- Bus rectangle in centre -->
+  <rect class="bus" x="340" y="110" width="320" height="320"/>
+  <text class="tb"  x="500" y="148" text-anchor="middle">EventBus</text>
+  <text class="sub" x="500" y="170" text-anchor="middle">async worker · 1 thread</text>
+  <text class="sub" x="500" y="186" text-anchor="middle">exception-isolated handlers</text>
+
+  <!-- Event types list inside bus -->
+  <text class="lbl" x="360" y="220">TurnStarted</text>
+  <text class="lbl" x="360" y="240">TurnFirstToken</text>
+  <text class="lbl" x="360" y="260">TurnFirstAudio</text>
+  <text class="lbl" x="360" y="280">TurnCancelled</text>
+  <text class="lbl" x="360" y="300">TurnCompleted</text>
+  <text class="lbl" x="360" y="320">StateChanged</text>
+  <text class="lbl" x="360" y="340">VisemeStream</text>
+  <text class="lbl" x="360" y="360">AffectTag</text>
+  <text class="lbl" x="360" y="380">HealthDegraded</text>
+
+  <!-- Subscribers (right column, stacked) -->
+  <rect class="box" x="740" y="90"  width="220" height="50"/>
+  <text class="tb" x="850" y="122" text-anchor="middle">TelemetryRecorder</text>
+
+  <rect class="box" x="740" y="160" width="220" height="50"/>
+  <text class="tb" x="850" y="192" text-anchor="middle">FaceRenderer</text>
+
+  <rect class="box" x="740" y="230" width="220" height="50"/>
+  <text class="tb" x="850" y="262" text-anchor="middle">Coordinator</text>
+
+  <rect class="box" x="740" y="300" width="220" height="50"/>
+  <text class="tb" x="850" y="332" text-anchor="middle">GUI status widgets</text>
+
+  <rect class="box" x="740" y="370" width="220" height="50"/>
+  <text class="tb" x="850" y="402" text-anchor="middle">LipSync driver</text>
+
+  <!-- Arrows from publishers → bus -->
+  <path class="line" d="M 260 115 L 340 115 L 340 160 L 340 160" marker-end="url(#a)"/>
+  <path class="line" d="M 260 185 L 340 185" marker-end="url(#a)"/>
+  <path class="line" d="M 260 255 L 340 255" marker-end="url(#a)"/>
+  <path class="line" d="M 260 325 L 340 325" marker-end="url(#a)"/>
+  <path class="line" d="M 260 395 L 340 395" marker-end="url(#a)"/>
+
+  <!-- Arrows from bus → subscribers -->
+  <path class="line" d="M 660 115 L 740 115" marker-end="url(#a)"/>
+  <path class="line" d="M 660 185 L 740 185" marker-end="url(#a)"/>
+  <path class="line" d="M 660 255 L 740 255" marker-end="url(#a)"/>
+  <path class="line" d="M 660 325 L 740 325" marker-end="url(#a)"/>
+  <path class="line" d="M 660 395 L 740 395" marker-end="url(#a)"/>
+
+  <!-- Caption footnote -->
+  <text class="sub" x="500" y="468" text-anchor="middle">Any publisher may emit any event; any subscriber may listen to any subset.</text>
+  <text class="sub" x="500" y="486" text-anchor="middle">A failing handler never stops the others — exceptions are caught per-subscriber.</text>
+</svg>

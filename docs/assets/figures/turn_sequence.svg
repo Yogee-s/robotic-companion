@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 480" role="img" aria-labelledby="title">
+  <title id="title">One conversation turn — left-to-right sequence</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .io  { fill: #45475a; stroke: #89b4fa; stroke-width: 2; rx: 8; ry: 8; }
+    .ml  { fill: #313244; stroke: #f9e2af; stroke-width: 1.5; rx: 8; ry: 8; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .lblg { fill: #a6e3a1; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .branch { stroke: #a6e3a1; stroke-width: 2; fill: none; }
+    .arr { fill: #89b4fa; }
+    .arrg { fill: #a6e3a1; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrg"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1300" height="480"/>
+
+  <text class="tb" x="650" y="30" text-anchor="middle">One conversation turn — spine flows left to right; face branch flows down from LLM and TTS</text>
+
+  <!-- SPINE ROW (generous 50-px gaps so arrow labels fit in between) -->
+  <!-- Box width 130, gap 50; boxes at x = 30, 210, 390, 570, 770, 960, 1140 (roughly) -->
+  <rect class="io"  x="30"   y="130" width="130" height="70"/>
+  <text class="tb"  x="95"   y="162" text-anchor="middle">Mic</text>
+  <text class="sub" x="95"   y="180" text-anchor="middle">16 kHz PCM</text>
+
+  <rect class="ml"  x="210"  y="130" width="130" height="70"/>
+  <text class="tb"  x="275"  y="162" text-anchor="middle">VAD</text>
+  <text class="sub" x="275"  y="180" text-anchor="middle">Silero v5</text>
+
+  <rect class="ml"  x="390"  y="130" width="130" height="70"/>
+  <text class="tb"  x="455"  y="162" text-anchor="middle">STT</text>
+  <text class="sub" x="455"  y="180" text-anchor="middle">Parakeet TDT</text>
+
+  <rect class="box" x="570"  y="130" width="160" height="70" style="stroke:#89b4fa;stroke-width:2"/>
+  <text class="tb"  x="650"  y="162" text-anchor="middle">Prompt build</text>
+  <text class="sub" x="650"  y="180" text-anchor="middle">hints + history</text>
+
+  <rect class="ml"  x="780"  y="130" width="130" height="70"/>
+  <text class="tb"  x="845"  y="162" text-anchor="middle">LLM</text>
+  <text class="sub" x="845"  y="180" text-anchor="middle">Llama-3.2-1B</text>
+
+  <rect class="box" x="960"  y="130" width="140" height="70"/>
+  <text class="tb"  x="1030" y="162" text-anchor="middle">Sentence split</text>
+  <text class="sub" x="1030" y="180" text-anchor="middle">pysbd</text>
+
+  <rect class="ml"  x="1150" y="130" width="130" height="70"/>
+  <text class="tb"  x="1215" y="162" text-anchor="middle">TTS</text>
+  <text class="sub" x="1215" y="180" text-anchor="middle">Piper · 24 kHz</text>
+
+  <!-- Speaker output -->
+  <rect class="io"  x="30"   y="280" width="130" height="50" style="opacity:0"/>
+
+  <!-- Arrows on the spine, drawn in the 50-px gaps; labels ABOVE the arrow line (y=118) so they never touch box text -->
+  <path class="line" d="M 160 165 L 210 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="185" y="120" text-anchor="middle">chunk</text>
+
+  <path class="line" d="M 340 165 L 390 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="365" y="120" text-anchor="middle">speech clip</text>
+
+  <path class="line" d="M 520 165 L 570 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="545" y="120" text-anchor="middle">transcript</text>
+
+  <path class="line" d="M 730 165 L 780 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="755" y="120" text-anchor="middle">prompt</text>
+
+  <path class="line" d="M 910 165 L 960 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="935" y="120" text-anchor="middle">reply</text>
+
+  <path class="line" d="M 1100 165 L 1150 165" marker-end="url(#a)"/>
+  <text class="lbl"  x="1125" y="120" text-anchor="middle">sentence</text>
+
+  <!-- FACE BRANCH (green) — goes DOWN from LLM and TTS to two face-related boxes below -->
+  <!-- Affect-tag box under LLM -->
+  <rect class="box" x="780" y="310" width="130" height="60" style="stroke:#a6e3a1;stroke-width:2"/>
+  <text class="tb"  x="845" y="338" text-anchor="middle">Affect tag</text>
+  <text class="sub" x="845" y="356" text-anchor="middle">[affect: happy]</text>
+
+  <!-- ESP32 face box to the right -->
+  <rect class="io"  x="960" y="310" width="220" height="60"/>
+  <text class="tb"  x="1070" y="338" text-anchor="middle">ESP32 face</text>
+  <text class="sub" x="1070" y="356" text-anchor="middle">FACE v=… a=… · VISEME …</text>
+
+  <!-- LLM → Affect tag (straight vertical drop) -->
+  <path class="branch" d="M 845 200 L 845 310" marker-end="url(#g)"/>
+  <text class="lblg" x="855" y="255">terminal tag</text>
+
+  <!-- Affect tag → ESP32 (horizontal) -->
+  <path class="branch" d="M 910 340 L 960 340" marker-end="url(#g)"/>
+
+  <!-- TTS → ESP32 (right-angle drop) — comes down at x=1215, then left to x=1180, but we enter ESP32 from the top at x=1070 to avoid crossing -->
+  <!-- Route: TTS bottom (1215, 200) → down to y=260 → left to x=1070 → down into ESP32 top (1070, 310). The horizontal run at y=260 is well above the affect-tag box (y>=310) so it does not cross. -->
+  <path class="branch" d="M 1215 200 L 1215 260 L 1070 260 L 1070 310" marker-end="url(#g)"/>
+  <text class="lblg" x="1135" y="254" text-anchor="middle">viseme PCM</text>
+
+  <!-- Legend (along the bottom) -->
+  <g transform="translate(30, 420)">
+    <rect width="16" height="4" fill="#89b4fa"/>
+    <text class="sub" x="22" y="6">turn-data flow</text>
+    <rect x="150" width="16" height="4" fill="#a6e3a1"/>
+    <text class="sub" x="172" y="6">face / display</text>
+    <rect x="280" y="-5" width="16" height="14" fill="#45475a" stroke="#89b4fa" stroke-width="2"/>
+    <text class="sub" x="302" y="6">I/O surface</text>
+    <rect x="400" y="-5" width="16" height="14" fill="#313244" stroke="#f9e2af" stroke-width="1.5"/>
+    <text class="sub" x="422" y="6">ML model</text>
+    <rect x="510" y="-5" width="16" height="14" fill="#313244" stroke="#45475a" stroke-width="1.5"/>
+    <text class="sub" x="532" y="6">control step</text>
+  </g>
+</svg>

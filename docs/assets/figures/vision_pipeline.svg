@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 620" role="img" aria-labelledby="title">
+  <title id="title">Vision pipeline — top-down</title>
+  <style>
+    .bg { fill: #1e1e2e; }
+    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
+    .io  { fill: #45475a; stroke: #89b4fa; stroke-width: 2; rx: 8; ry: 8; }
+    .ml  { fill: #313244; stroke: #f9e2af; stroke-width: 1.5; rx: 8; ry: 8; }
+    .off { fill: #313244; stroke: #6c7086; stroke-width: 1.2; stroke-dasharray: 5 3; rx: 8; ry: 8; }
+    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
+    .sub2 { fill: #6c7086; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; font-style: italic; }
+    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
+    .offline { stroke: #6c7086; stroke-width: 1.5; stroke-dasharray: 5 3; fill: none; }
+    .arr { fill: #89b4fa; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6c7086"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="620"/>
+
+  <text class="tb" x="280" y="28" text-anchor="middle">Vision subsystem — capture and perception</text>
+
+  <!-- Camera -->
+  <rect class="io" x="190" y="60" width="180" height="56"/>
+  <text class="tb" x="280" y="86" text-anchor="middle">IMX219 CSI Camera</text>
+  <text class="sub" x="280" y="104" text-anchor="middle">640 × 480 @ 30 fps</text>
+
+  <!-- CSICamera grab thread -->
+  <rect class="box" x="190" y="146" width="180" height="56"/>
+  <text class="tb" x="280" y="170" text-anchor="middle">CSICamera grab</text>
+  <text class="sub" x="280" y="188" text-anchor="middle">GStreamer · nvargus</text>
+
+  <!-- YOLO face detector -->
+  <rect class="ml" x="190" y="232" width="180" height="56"/>
+  <text class="tb" x="280" y="256" text-anchor="middle">YOLO26n-pose</text>
+  <text class="sub" x="280" y="274" text-anchor="middle">head keypoints → face bbox</text>
+
+  <!-- EmotionPipeline -->
+  <rect class="box" x="190" y="318" width="180" height="56" style="stroke:#89b4fa;stroke-width:2"/>
+  <text class="tb" x="280" y="342" text-anchor="middle">EmotionPipeline state</text>
+  <text class="sub" x="280" y="360" text-anchor="middle">EMA · 3 s staleness fade</text>
+
+  <!-- Branch: face tracker (left) vs emotion classifier (right, off-dashed) -->
+  <rect class="box" x="60" y="420" width="180" height="56" style="stroke:#a6e3a1;stroke-width:2"/>
+  <text class="tb" x="150" y="444" text-anchor="middle">FaceTracker</text>
+  <text class="sub" x="150" y="462" text-anchor="middle">15 Hz · head servo PID</text>
+
+  <rect class="off" x="320" y="420" width="180" height="56"/>
+  <text class="tb" x="410" y="444" text-anchor="middle">HSEmotion (8-class)</text>
+  <text class="sub2" x="410" y="462" text-anchor="middle">standalone only · not integrated</text>
+
+  <!-- Destinations -->
+  <rect class="io" x="60" y="510" width="180" height="44"/>
+  <text class="tb" x="150" y="536" text-anchor="middle">Head servos</text>
+
+  <rect class="off" x="320" y="510" width="180" height="44"/>
+  <text class="tb" x="410" y="530" text-anchor="middle" style="fill:#6c7086">valence / arousal</text>
+  <text class="sub2" x="410" y="548" text-anchor="middle">(debug GUI only)</text>
+
+  <!-- Arrows down the spine -->
+  <path class="line" d="M 280 116 L 280 146" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="134">BGR frame</text>
+
+  <path class="line" d="M 280 202 L 280 232" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="220">every 2 frames</text>
+
+  <path class="line" d="M 280 288 L 280 318" marker-end="url(#a)"/>
+  <text class="lbl" x="286" y="306">face bbox + score</text>
+
+  <!-- Branch out -->
+  <path class="line" d="M 280 374 L 280 396 L 150 396 L 150 420" marker-end="url(#a)"/>
+  <text class="lbl" x="170" y="410">pose + face centre</text>
+
+  <path class="offline" d="M 280 374 L 280 396 L 410 396 L 410 420" marker-end="url(#b)"/>
+  <text class="sub2" x="330" y="410">face crop</text>
+
+  <!-- Down to destinations -->
+  <path class="line" d="M 150 476 L 150 510" marker-end="url(#a)"/>
+  <path class="offline" d="M 410 476 L 410 510" marker-end="url(#b)"/>
+
+  <!-- Legend -->
+  <rect x="40" y="576" width="14" height="4" fill="#89b4fa"/>
+  <text class="sub" x="60" y="582">integrated</text>
+  <rect x="170" y="576" width="14" height="2" fill="#6c7086" stroke="#6c7086" stroke-dasharray="4 3"/>
+  <text class="sub" x="190" y="582">standalone only</text>
+</svg>

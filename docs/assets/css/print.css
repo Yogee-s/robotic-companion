@@ -1,0 +1,139 @@
+/* Print-specific CSS — hide TOC, force chapter page breaks, lighten background */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 18mm 18mm 22mm 18mm;
+    @bottom-center {
+      content: "URex — Expressive Multimodal AI Companion   |   github.com/Yogee-s/robotic-companion   |   Page " counter(page);
+      font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+      font-size: 9pt;
+      color: #6c7086;
+    }
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #1e1e2e !important;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  aside.toc,
+  .toc-toggle,
+  footer.site-footer {
+    display: none !important;
+  }
+
+  .layout { display: block; }
+
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  main article { max-width: 100% !important; margin: 0; }
+
+  h1 { font-size: 22pt; color: #1e1e2e !important; }
+  h2 { font-size: 15pt; color: #1e66f5 !important; border-color: #d0d0d0 !important; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #1e66f5 !important; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; color: #0c7b93 !important; page-break-after: avoid; }
+
+  p, li, td, th, figcaption { color: #2a2a3a !important; }
+  strong { color: #1e1e2e !important; }
+  em { color: #b01060 !important; }
+
+  a { color: #1e66f5 !important; text-decoration: none; }
+
+  code {
+    background: #f0f0f4 !important;
+    color: #0c7b93 !important;
+    font-size: 9.5pt;
+  }
+
+  pre {
+    background: #f5f5f8 !important;
+    color: #1e1e2e !important;
+    border: 1px solid #d0d0d0 !important;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+
+  pre code { color: #1e1e2e !important; }
+
+  blockquote {
+    background: #f5f5f8 !important;
+    color: #3a3a4a !important;
+    border-left-color: #1e66f5 !important;
+  }
+
+  figure.figure, figure.cad {
+    background: #fafafc !important;
+    border-color: #d0d0d0 !important;
+    page-break-inside: avoid;
+  }
+
+  figure.figure img, figure.figure svg,
+  figure.cad img {
+    background: #ffffff !important;
+  }
+
+  figure.figure figcaption,
+  figure.cad figcaption {
+    color: #3a3a4a !important;
+    border-top-color: #d0d0d0 !important;
+  }
+
+  .figures-side-by-side figure.figure { page-break-inside: avoid; }
+
+  table {
+    background: #ffffff !important;
+    page-break-inside: avoid;
+  }
+
+  thead th {
+    background: #eeeef2 !important;
+    color: #1e66f5 !important;
+    border-bottom-color: #d0d0d0 !important;
+  }
+
+  tbody td { border-top-color: #e0e0e4 !important; color: #2a2a3a !important; }
+  tbody tr:hover { background: transparent !important; }
+
+  .math {
+    background: #f5f5f8 !important;
+    color: #1e1e2e !important;
+    border-left-color: #0c7b93 !important;
+    page-break-inside: avoid;
+  }
+
+  .abstract {
+    background: #f5f5f8 !important;
+    color: #2a2a3a !important;
+    border-left-color: #1e66f5 !important;
+    page-break-inside: avoid;
+  }
+
+  .abstract h2 { color: #1e66f5 !important; }
+  .abstract p { color: #2a2a3a !important; }
+
+  .title-block { border-bottom-color: #1e1e2e !important; }
+  .title-block .subtitle, .title-block .meta { color: #3a3a4a !important; }
+
+  /* Force chapter breaks */
+  section.chapter {
+    page-break-before: always;
+    margin-top: 0;
+  }
+
+  section.chapter:first-of-type { page-break-before: auto; }
+
+  /* Avoid orphans / widows on captions and headings */
+  figure.figure, figure.cad, .math, table, pre { page-break-inside: avoid; }
+  h1, h2, h3, h4 { page-break-after: avoid; }
+
+  /* Status colours to something printable */
+  .status-integrated { color: #0c7b93 !important; }
+  .status-proven     { color: #c68117 !important; }
+  .status-deferred   { color: #6c7086 !important; }
+}

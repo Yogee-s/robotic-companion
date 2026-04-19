@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>URex — Expressive Multimodal AI Companion</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/print.css" media="print">
+</head>
+<body>
+<button class="toc-toggle" aria-label="Toggle table of contents">☰ Contents</button>
+<div class="layout">
+
+<aside class="toc">
+  <div class="brand">URex — Technical Report</div>
+  <ol>
+    <li><a href="#introduction">1. Introduction</a></li>
+    <li><a href="#background">2. Background &amp; related work</a></li>
+    <li><a href="#overview">3. System overview</a></li>
+    <li><a href="#mechanical">4. Mechanical iterations</a></li>
+    <li><a href="#kinematics">5. Kinematics</a></li>
+    <li><a href="#servo-bus">6. Servo bus lessons</a></li>
+    <li><a href="#perception">7. Perception</a></li>
+    <li><a href="#conversation">8. Conversation &amp; LLM</a></li>
+    <li><a href="#integration">9. Integration runtime</a></li>
+    <li><a href="#display">10. Display &amp; face</a></li>
+    <li><a href="#testing">11. Testing &amp; verification</a></li>
+    <li><a href="#constraints">12. Design under 8 GB budget</a></li>
+    <li><a href="#future-work">13. Future work</a></li>
+    <li><a href="#conclusion">14. Conclusion</a></li>
+    <li><a href="#appendix-a">Appendix A — Repo layout</a></li>
+    <li><a href="#appendix-b">Appendix B — Config summary</a></li>
+  </ol>
+</aside>
+
+<main>
+<article id="top">
+
+<header class="title-block">
+  <h1>URex: An Expressive Multimodal AI Companion</h1>
+  <div class="subtitle">A two-DOF differential-bevel head, an on-device voice interaction loop, and a touchscreen face — fully offline on an 8 GB edge AI board.</div>
+  <div class="meta">
+    <span>Source: <a href="https://github.com/Yogee-s/robotic-companion" target="_blank" rel="noopener">github.com/Yogee-s/robotic-companion</a></span>
+    <span>Platform: Jetson Orin Nano 8 GB</span>
+  </div>
+</header>
+
+<section class="hero-strip" aria-label="URex prototype, two face states">
+  <figure>
+    <img src="assets/images/robot_neutral_face.jpg" alt="Assembled URex robot, ESP32 face showing the neutral expression">
+    <figcaption>Assembled prototype — neutral face</figcaption>
+  </figure>
+  <figure>
+    <img src="assets/images/robot_happy_face.jpg" alt="Assembled URex robot, ESP32 face showing the happy expression">
+    <figcaption>Assembled prototype — happy face</figcaption>
+  </figure>
+</section>
+
+<div class="abstract">
+  <h2>Abstract</h2>
+  <p>
+    URex is an expressive companion robot built around a mechanically novel two-degree-of-freedom head and a locally-hosted multimodal AI stack. A pair of Feetech ST3215 smart serial servos drive a differential bevel gearbox that produces pan and tilt from two simultaneous motor inputs; a 2.8″ ESP32 touchscreen renders an affect-driven face synchronised with lip movements; a CSI camera and a 4-microphone array feed a conversation loop that transcribes speech, reasons with a quantised language model, and speaks back through a neural TTS — all on a Jetson Orin Nano with 8 GB of unified memory, with no cloud dependency.
+  </p>
+  <p>
+    This report documents the mechanical iteration history that converged on the working head, the differential-bevel kinematics and calibration procedure, the integrated perception and conversation pipelines, and the runtime architecture that keeps the system responsive. It ends with an honest discussion of the memory constraints that shaped the shipped integration — in particular the downgrade from a multimodal to a text-only language model and the fact that the affect-perception subsystem, while verified in isolation, does not run concurrently with the voice loop on the current budget — and a forward-looking roadmap for the capabilities that follow once additional headroom is available.
+  </p>
+</div>
+
+<!-- ═══════════════════ 1. INTRODUCTION ═══════════════════ -->
+<section id="introduction" class="chapter">
+  <h2>1. Introduction</h2>
+  <p>
+    Affective embodied robots occupy a well-studied niche in human-robot interaction research. Commercial and clinical precedents — PARO as a tactile therapeutic seal, LivingAI EMO as an expressive desk robot, and Qoobo as a motion-only companion — all make the same observation: a physical body, even a small one, that orients toward a person and responds with visible state is disproportionately effective at conveying presence and attention. Cloud voice assistants without bodies do not reliably produce the same effect.
+  </p>
+  <p>
+    Most of those commercial systems either rely on a cloud backend for any non-trivial language capability, or narrow their interaction to a single modality (touch only, motion only). A platform that combines physical expressivity with full multi-turn conversation and perception, all hosted on device, is still an open engineering problem — particularly on consumer-grade edge hardware where memory budgets are measured in single-digit gigabytes.
+  </p>
+  <p>
+    URex is built to that gap. The system fuses a <strong>2-DOF expressive head</strong>, a <strong>rendered touchscreen face</strong>, and a <strong>full voice-interaction pipeline</strong> — listening, reasoning, and speaking — into a single device that runs entirely offline on a Jetson Orin Nano 8 GB. The mechanical head, based on a differential bevel gearbox, is the main novel physical contribution. The software is a tightly-integrated assembly of open source models (Silero VAD, Parakeet TDT, Llama 3.2, Piper) wrapped in a turn-oriented state machine, an event bus, and a GPU arbiter that cooperatively share a single board's unified memory.
+  </p>
+  <p>
+    The rest of this report describes, in order: the related work that motivated the design (<a href="#background">§2</a>), the system as a whole (<a href="#overview">§3</a>), the mechanical iteration story that produced the working head (<a href="#mechanical">§4</a>), the kinematics (<a href="#kinematics">§5</a>), the low-level servo bus lessons (<a href="#servo-bus">§6</a>), the perception stack (<a href="#perception">§7</a>), the conversation and LLM stack (<a href="#conversation">§8</a>), the runtime infrastructure (<a href="#integration">§9</a>), the face and GUI (<a href="#display">§10</a>), the testing strategy (<a href="#testing">§11</a>), and a chapter — the most important one for anyone evaluating the final build — on the 8 GB memory budget and the decisions it forced (<a href="#constraints">§12</a>). A forward-looking future-work list (<a href="#future-work">§13</a>) and a short conclusion (<a href="#conclusion">§14</a>) close the report.
+  </p>
+</section>
+
+<!-- ═══════════════════ 2. BACKGROUND ═══════════════════ -->
+<section id="background" class="chapter">
+  <h2>2. Background and related work</h2>
+
+  <h3>2.1 Affective companion robots</h3>
+  <p>
+    The design space for affective companions clusters around three archetypes worth calling out, because each one emphasises a different communication channel and the URex design takes something from each.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Reference</th><th>Primary channel</th><th>Role in therapy / companionship</th><th>Relevance to URex</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>PARO</strong> (Japan, AIST)</td>
+        <td>Tactile, plush form, subtle motion and sound</td>
+        <td>Validated clinical companion for dementia care; reduces agitation and isolation.</td>
+        <td>Establishes that a small embodied presence is effective; motivates the <em>head-first</em> design decision.</td>
+      </tr>
+      <tr>
+        <td><strong>LivingAI EMO</strong></td>
+        <td>Expressive motion + animated eyes on a screen face</td>
+        <td>Consumer desk companion; personality driven by micro-movements and eye state.</td>
+        <td>Closest to URex's face-plus-head combination; validates the eye/face-on-screen approach.</td>
+      </tr>
+      <tr>
+        <td><strong>Qoobo</strong></td>
+        <td>Motion only (a tail)</td>
+        <td>Companion for people who cannot keep real pets.</td>
+        <td>Demonstrates that a single expressive degree of freedom, well-controlled, carries presence.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.2 Expressive motion as a channel</h3>
+  <p>
+    Head orientation is one of the most economical perceptual cues humans have for judging attention. An embodied system that simply <em>looks at you</em> when you speak is read as attentive in a way that static rendering is not. URex places that single cue — a two-DOF head that orients toward a detected face — at the centre of its physical expressivity, and augments it with a screen face whose state (valence, arousal, listening / thinking / speaking) changes in response to the conversation.
+  </p>
+
+  <h3>2.3 Edge multimodal AI</h3>
+  <p>
+    The class of always-on multimodal AI stacks — wake-less voice activity detection, local ASR, local LLM reasoning, local neural TTS, local vision — has only recently become feasible on 8 GB-class edge SoCs, driven by 4-bit quantisation (llama.cpp's GGUF format), ONNX-optimised STT (Parakeet TDT), and lightweight neural vocoders (Piper, Kokoro). Running the whole loop on device matters for privacy (a companion robot should not stream raw audio to a cloud provider) and for latency (sub-second turn response needs tight local coupling, not a round trip through the internet).
+  </p>
+  <p>
+    The Jetson Orin Nano 8 GB is a viable platform for this class of system — but a tight one. <a href="#constraints">Chapter 12</a> explains in detail how that budget shapes which of these models actually co-exist at runtime.
+  </p>
+
+  <h3>2.4 Credits</h3>
+  <p>
+    URex integrates, and is grateful to, the following open-source projects: <code>llama.cpp</code> (quantised LLM inference), <code>Parakeet TDT</code> (NVIDIA ASR, ONNX export), <code>Silero VAD</code> (voice activity detection), <code>Piper</code> and <code>Kokoro</code> (neural TTS), <code>YOLO26n-pose</code> (person keypoints), <code>HSEmotion</code> (facial emotion classifier, used standalone), <code>TFT_eSPI</code> (ESP32 display driver), <code>Rhubarb</code> (viseme-from-PCM), <code>Mem0</code> and <code>Chroma</code> (persistent memory), and <code>LiveKit EOU</code> (semantic end-of-utterance).
+  </p>
+</section>
+
+<!-- ═══════════════════ 3. SYSTEM OVERVIEW ═══════════════════ -->
+<section id="overview" class="chapter">
+  <h2>3. System overview</h2>
+
+  <h3>3.1 Hardware components</h3>
+  <ul>
+    <li><strong>Jetson Orin Nano 8 GB</strong> — compute (CPU + GPU on unified memory, JetPack 6).</li>
+    <li><strong>ReSpeaker 4-mic USB array</strong> — audio input and direction-of-arrival estimation; XMOS XVF-3800 DSP with a 12-LED ring.</li>
+    <li><strong>IMX219 CSI camera</strong> — vision input; 640 × 480 @ 30 fps operating resolution.</li>
+    <li><strong>Diymore 2.8″ ESP32 TFT</strong> with ILI9341 display, XPT2046 resistive touch, and CH340 USB-serial — renders the face and provides tap input.</li>
+    <li><strong>2× Feetech ST3215 smart serial servos</strong> — head actuation, mirror-mounted with 20-tooth bevel pinions.</li>
+    <li><strong>Waveshare CH343 USB-serial bus adapter</strong> — 1 Mbaud half-duplex Feetech bus to the servos.</li>
+    <li><strong>USB speaker</strong> — TTS output via <code>aplay</code>.</li>
+    <li><strong>3D-printed PLA mount</strong> — holds the gearbox, the head, and the sensors.</li>
+  </ul>
+
+  <figure class="figure">
+    <img src="assets/figures/hardware_topology.svg" alt="Hardware topology: Jetson Orin Nano at the centre with six peripherals.">
+    <figcaption><span class="figno">Figure 1.</span> Hardware topology. Every peripheral connects directly to the Jetson over USB or CSI; the servo bus is the only multi-device link and is a clean daisy chain from the CH343 adapter.</figcaption>
+  </figure>
+
+  <h3>3.2 Software layers</h3>
+  <figure class="figure">
+    <img src="assets/figures/software_layers.svg" alt="Software architecture — four top-down layers.">
+    <figcaption><span class="figno">Figure 2.</span> Software architecture. Leaf subsystems are owned by their domain packages; ConversationManager and BehaviorEngine orchestrate them; an EventBus and GPU arbiter form the shared signal plane; <code>main.py</code> wires everything together in the bring-up order shown in <a href="#integration">§9</a>.</figcaption>
+  </figure>
+
+  <h3>3.3 Subsystem index</h3>
+  <table>
+    <thead>
+      <tr><th>Subsystem</th><th>Path</th><th>Purpose</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Audio I/O</td><td><code>companion/audio/io.py</code></td><td>Mic capture, speaker streaming.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Voice activity detection</td><td><code>companion/audio/vad.py</code></td><td>Silero v5 ONNX VAD + turn-taking state.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Speech-to-text</td><td><code>companion/audio/stt.py</code></td><td>Parakeet TDT (primary), Whisper (fallback).</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Text-to-speech</td><td><code>companion/audio/tts.py</code></td><td>Piper (CPU default), Kokoro (alt).</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>ReSpeaker DOA</td><td><code>companion/audio/respeaker.py</code></td><td>USB HID control, DOA, LEDs.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Barge-in</td><td><code>companion/audio/barge_in.py</code></td><td>Discriminates real user speech from TTS bleed.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Camera</td><td><code>companion/vision/camera.py</code></td><td>CSI capture via GStreamer.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Face detection</td><td><code>companion/vision/face_detector.py</code></td><td>YOLO26n-pose keypoints → face bbox.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Face tracker</td><td><code>companion/vision/face_tracker.py</code></td><td>Head-servo control from face position.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Emotion classifier</td><td><code>companion/vision/emotion_classifier.py</code></td><td>HSEmotion 8-class + valence/arousal.</td><td class="status-proven">verified standalone</td></tr>
+      <tr><td>LLM engine</td><td><code>companion/llm/engine.py</code></td><td>llama-cpp-python, quantised inference.</td><td class="status-integrated">integrated (text-only)</td></tr>
+      <tr><td>Motor controller</td><td><code>companion/motor/controller.py</code></td><td>ST3215 bus, telemetry poll, safety.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Kinematics</td><td><code>companion/motor/kinematics.py</code></td><td>Differential-bevel FK / IK.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Calibration wizard</td><td><code>companion/ui/calibration_window.py</code></td><td>9-step Qt bring-up wizard.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>ESP32 face</td><td><code>firmware/companion_face/</code></td><td>Local TFT render of face and menus.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Conversation manager</td><td><code>companion/conversation/manager.py</code></td><td>Turn lifecycle, state transitions.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Event bus</td><td><code>companion/core/event_bus.py</code></td><td>Async pub/sub.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>GPU arbiter</td><td><code>companion/core/gpu_arbiter.py</code></td><td>Realtime vs background GPU lock.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Health monitor</td><td><code>companion/core/health.py</code></td><td>Watchdog for mic / camera / motors.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Telemetry</td><td><code>companion/core/telemetry.py</code></td><td>Per-turn JSONL traces.</td><td class="status-integrated">integrated</td></tr>
+      <tr><td>Scene captioning (VLM)</td><td><code>companion/vision/scene_watcher.py</code></td><td>Needs multimodal LLM.</td><td class="status-deferred">deferred</td></tr>
+      <tr><td>Persistent memory</td><td><code>companion/llm/memory.py</code></td><td>Mem0 + Chroma per-speaker store.</td><td class="status-deferred">deferred</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════ 4. MECHANICAL ═══════════════════ -->
+<section id="mechanical" class="chapter">
+  <h2>4. Mechanical design and iteration history</h2>
+  <p>
+    The head mechanism — a two-motor differential bevel pan/tilt — was iterated through six CAD revisions before it functioned reliably. Each revision exposed a new failure mode; the descriptions below document what was broken and what was fixed at each step. The figures are the exact CAD renders used during design review.
+  </p>
+
+  <h3>4.1 Original concept</h3>
+  <figure class="cad">
+    <img src="assets/images/original_concept.png" alt="First CAD sketch of the differential bevel concept.">
+    <figcaption><span class="figno">Figure 3.</span> Original concept. Two motor-driven pinion bevels meshing with a single crown gear — two inputs, two outputs — establishes the differential layout. This is the starting point for every subsequent iteration.</figcaption>
+  </figure>
+
+  <h3>4.2 Prototype 1 — too large a footprint</h3>
+  <figure class="cad">
+    <img src="assets/images/prototype_1_too_big.png" alt="Prototype 1, showing an oversized mount.">
+    <figcaption><span class="figno">Figure 4.</span> Prototype 1. Mechanically correct, but the base and motor pockets consumed an impractical amount of bench space, and the head was proportioned for a much larger enclosure than anything this project intended to carry. The next revision tightened the envelope.</figcaption>
+  </figure>
+
+  <h3>4.3 Prototype 2 — cable routing collides with the servo body</h3>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/prototype_2_cable_issue.png" alt="Prototype 2, front view.">
+      <figcaption><span class="figno">Figure 5.</span> Prototype 2 front. More compact, but the side-mounted servos placed their cable exits directly in the sweep of the bevel pinions.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/p2_cable_routing_issue.png" alt="Prototype 2, close-up of cable clash.">
+      <figcaption><span class="figno">Figure 6.</span> Detail. The cable exit for each ST3215 fouls the pinion sweep; no routing path exists that does not interfere with gear motion.</figcaption>
+    </figure>
+  </div>
+
+  <h3>4.4 Prototype 3 — parts sectioned for printing and assembly</h3>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/prototype_3_sectioned.png" alt="Prototype 3, exploded view.">
+      <figcaption><span class="figno">Figure 7.</span> Prototype 3. The monolithic base from P2 is split into two printable halves with discrete servo pockets and an accessible central spine. Print orientation respects gear tooth load direction.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/p3_sectioned_parts.png" alt="Prototype 3, cross-section showing servo clearance.">
+      <figcaption><span class="figno">Figure 8.</span> Section view. The sectioned geometry leaves space for fasteners, bearing seats, and the head stem.</figcaption>
+    </figure>
+  </div>
+
+  <h3>4.5 Prototype 4 — gear disengages from an unaligned pivot</h3>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/prototype_4_unaligned_pivot.png" alt="Prototype 4, front view.">
+      <figcaption><span class="figno">Figure 9.</span> Prototype 4. Structurally clean, but the head's tilt pivot was not concentric with the bevel crown. Under off-axis load the crown lifts away from the pinion and the teeth disengage.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/p4_gear_disengages.png" alt="Prototype 4, section showing the disengagement.">
+      <figcaption><span class="figno">Figure 10.</span> Detail of the disengagement. The pivot sits below the gear mesh centre; any tilt command introduces a small vertical displacement at the mesh that quickly compounds into a skipped tooth.</figcaption>
+    </figure>
+  </div>
+
+  <h3>4.6 Prototype 5 — pivot relocated onto the crown axis</h3>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/prototype_5_aligned_pivot.png" alt="Prototype 5, front view, pivot now centred.">
+      <figcaption><span class="figno">Figure 11.</span> Prototype 5. The tilt pivot is now coincident with the crown-gear plane, so tilt is a pure rotation at the mesh. Engagement holds across the full travel range.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/p5_aligned_pivot.png" alt="Prototype 5, detail of aligned pivot.">
+      <figcaption><span class="figno">Figure 12.</span> Detail. Pivot concentric with the bevel crown; clean rotational mesh at any tilt angle.</figcaption>
+    </figure>
+  </div>
+
+  <h3>4.7 Final CAD assembly</h3>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/final_front.png" alt="Final CAD assembly, front view.">
+      <figcaption><span class="figno">Figure 13.</span> Final assembly, front. Minimal mount footprint, accessible fasteners, cable exit re-routed behind the servo bodies.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/final_side.png" alt="Final CAD assembly, side view.">
+      <figcaption><span class="figno">Figure 14.</span> Final assembly, side. Pivot on-axis with the crown; head payload (TFT frame + camera) cantilevered forward with centre of mass close to the tilt axis.</figcaption>
+    </figure>
+  </div>
+  <figure class="cad">
+    <img src="assets/images/final_bottom.png" alt="Final CAD assembly, bottom view.">
+    <figcaption><span class="figno">Figure 15.</span> Final assembly, bottom. Serviceable bolt pattern; central stem takes the tilt bearing.</figcaption>
+  </figure>
+
+  <h3>4.8 Full assembled prototype</h3>
+  <p>
+    The two photographs below are the physical realisation of the final CAD: 3D-printed PLA mount, 40-tooth crown and 20-tooth pinions visible under the head, two ST3215 servos mirror-mounted with cable exits routed to the rear, a CSI ribbon running up to the camera taped at the top of the head, and the Diymore 2.8″ TFT screen rendering the face. The two face states demonstrate the display subsystem (<a href="#display">§10</a>) responding to affect commands from the conversation layer.
+  </p>
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/robot_neutral_face.jpg" alt="Assembled prototype, neutral face.">
+      <figcaption><span class="figno">Figure 16.</span> Assembled prototype with the face in its <em>neutral</em> state.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/robot_happy_face.jpg" alt="Assembled prototype, happy face.">
+      <figcaption><span class="figno">Figure 17.</span> Same prototype with the face in <em>happy</em>, driven by an <code>[affect: happy]</code> tag from the LLM reply.</figcaption>
+    </figure>
+  </div>
+
+  <h3>4.9 Lessons</h3>
+  <table>
+    <thead><tr><th>Issue</th><th>Iteration where it surfaced</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>Form factor oversized</td><td>P1</td><td>Tighten envelope to motor + gearbox + head payload only.</td></tr>
+      <tr><td>Cable exit clashes with gear sweep</td><td>P2</td><td>Route cables behind servo bodies; leave clearance in the mount.</td></tr>
+      <tr><td>Unprintable monolithic geometry</td><td>P2 → P3</td><td>Section into two halves along a plane that respects tooth-load direction.</td></tr>
+      <tr><td>Tilt pivot not concentric with bevel crown</td><td>P4</td><td>Move the pivot into the plane of the gear mesh (P5).</td></tr>
+      <tr><td>Head payload off-axis causes sag</td><td>Final</td><td>Cantilever the TFT + camera with CoM close to the pivot.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════ 5. KINEMATICS ═══════════════════ -->
+<section id="kinematics" class="chapter">
+  <h2>5. Kinematics</h2>
+  <p>
+    The head mechanism is a classical two-input bevel differential. Two Feetech ST3215 smart serial servos, mirror-mounted, each drive a 20-tooth bevel pinion. Both pinions mesh with a single 40-tooth crown bevel gear that carries the head. The gear reduction is therefore <code>G = 40 / 20 = 2.0</code>: one full revolution of the crown requires two revolutions of each pinion.
+  </p>
+  <p>
+    Because the pinions mesh with opposite sides of the crown, their rotations combine differentially: when both motors rotate in the same direction, the crown pitches (tilt); when they rotate in opposite directions, the crown yaws (pan). The two degrees of freedom the user cares about — <em>pan</em> and <em>tilt</em> — are therefore obtained by mixing the two motor inputs, not by driving separate axes.
+  </p>
+
+  <figure class="figure">
+    <img src="assets/figures/differential_bevel.svg" alt="Differential bevel gearbox schematic with motor and head rotation arrows.">
+    <figcaption><span class="figno">Figure 18.</span> Differential bevel schematic. Motor rotations θ<sub>L</sub> and θ<sub>R</sub> mix through the 2× reduction to produce head pan and tilt. The equations at the bottom are the ones implemented verbatim in <code>repo/companion/motor/kinematics.py</code>.</figcaption>
+  </figure>
+
+  <h3>5.1 Forward and inverse equations</h3>
+  <p>
+    Let θ<sub>L</sub> and θ<sub>R</sub> denote left and right motor-shaft rotations (in radians, relative to calibrated zero), and let <em>p</em> and <em>q</em> denote head tilt and pan. The mapping is:
+  </p>
+  <div class="math">Forward:   pitch = (θ_L + θ_R) / (2 · G)
+           pan   = (θ_L − θ_R) / (2 · G)
+
+Inverse:   θ_L = G · (pitch + pan)
+           θ_R = G · (pitch − pan)</div>
+  <p>
+    The <code>ST3215</code> has a 4096-tick single-turn magnetic absolute encoder, so the conversion between ticks and radians is straightforward:
+  </p>
+  <div class="math">TICKS_PER_REV    = 4096
+ticks_per_rad    = 4096 / (2π)
+radians_per_tick = (2π) / 4096</div>
+
+  <h3>5.2 Inverse pipeline — user pose to motor ticks</h3>
+  <p>
+    The integrated path that turns a <code>(pan, tilt)</code> command into a pair of servo tick setpoints is a sequence of five stages, implemented in <code>repo/companion/motor/kinematics.py:41-67</code>.
+  </p>
+  <figure class="figure">
+    <img src="assets/figures/kinematics_pipeline.svg" alt="Five-step pipeline from user pose to servo ticks.">
+    <figcaption><span class="figno">Figure 19.</span> Inverse kinematics pipeline. Clamp → invert → solve → sign → offset. Each stage draws its parameters from <code>config.yaml → motor:</code>; calibration fills in the parameters.</figcaption>
+  </figure>
+  <ol>
+    <li><strong>Clamp</strong> the commanded pan and tilt to the soft limits (<code>pan_limits_deg</code>, <code>tilt_limits_deg</code>) so the controller never commands past a mechanical stop.</li>
+    <li><strong>Axis inversion</strong>: flip pan or tilt sign if the calibrated <code>invert_pan</code> / <code>invert_tilt</code> flags say so.</li>
+    <li><strong>Solve the inverse</strong>: θ<sub>L</sub> = G·(pitch + pan), θ<sub>R</sub> = G·(pitch − pan).</li>
+    <li><strong>Per-motor direction sign</strong>: because the servos are mirror-mounted, one of them runs positive-forward and the other negative-forward. <code>left_direction</code> and <code>right_direction</code> are ±1 and are set during calibration.</li>
+    <li><strong>Zero-tick offset</strong>: add the calibrated centre position (<code>left_zero_tick</code>, <code>right_zero_tick</code>) so the output is an absolute encoder setpoint.</li>
+  </ol>
+  <p>
+    The two tick values are written atomically to the servos using Feetech's <code>GroupSyncWrite</code>, and both are given the same <code>GOAL_TIME</code> so they complete the commanded motion in the same time window — an essential detail for pure-pan commands, where an unbalanced completion time causes a transient tilt.
+  </p>
+
+  <h3>5.3 Calibration wizard</h3>
+  <p>
+    Every mechanical unit's calibration parameters — zero ticks, motor direction, gear ratio, axis inversion, soft limits — are measured once through a nine-page Qt wizard (<code>repo/companion/ui/calibration_window.py</code>, launched by <code>python -m companion.motor.cli calibrate</code>). Each page captures one value and writes it back to <code>config.yaml</code> at the end.
+  </p>
+  <table>
+    <thead><tr><th>Step</th><th>What it does</th><th>Output</th></tr></thead>
+    <tbody>
+      <tr><td>1. Connect</td><td>Open the Feetech bus, ping both servo IDs.</td><td>connection confirmed</td></tr>
+      <tr><td>2. Direction</td><td>Jog each motor ±5° independently, user confirms direction.</td><td><code>left_direction</code>, <code>right_direction</code></td></tr>
+      <tr><td>3. Rough zero</td><td>Torque off; user hand-holds the head at centre + level; capture ticks.</td><td>rough <code>*_zero_tick</code></td></tr>
+      <tr><td>4. Combined sanity</td><td>Command pan/tilt presets, toggle axis inversions if needed.</td><td><code>invert_pan</code>, <code>invert_tilt</code></td></tr>
+      <tr><td>5. Limits</td><td>Step-jog to each mechanical stop, mark the tick.</td><td>limit ticks per axis</td></tr>
+      <tr><td>6. Refine zeros</td><td>Pan zero = midpoint of limits; tilt zero from phone-level reading.</td><td>refined zeros, symmetric limits</td></tr>
+      <tr><td>7. Gear ratio</td><td>Command a known motor delta, measure actual head angle.</td><td><code>gear_ratio_measured</code></td></tr>
+      <tr><td>8. Verify</td><td>Live 3D sphere preview + sliders; right-drag to move the head.</td><td>visual confirmation</td></tr>
+      <tr><td>9. Save</td><td>Write every value back to <code>config.yaml → motor:</code>.</td><td>persisted calibration</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.4 Currently-persisted calibration</h3>
+  <p>
+    Lifted directly from the repository's <code>config.yaml</code>:
+  </p>
+<pre><code>motor:
+  left_zero_tick:     2514
+  right_zero_tick:    2594
+  left_direction:       +1
+  right_direction:      −1
+  gear_ratio_measured:   2
+  backlash_deg:          1
+  invert_pan:        false
+  invert_tilt:       false
+  pan_limits_deg:  [−37.9683, +37.9683]
+  tilt_limits_deg: [ −8.0635,  +8.0635]</code></pre>
+
+  <h3>5.5 The wizard in action</h3>
+  <figure class="cad">
+    <img src="assets/images/gui_calibration_wizard.png" alt="Calibration wizard, page one — connect and scan the bus.">
+    <figcaption><span class="figno">Figure 20.</span> Calibration wizard, page one. The simulator checkbox lets the whole wizard run without any servo hardware attached, which is how the nine pages are rehearsed before touching a real device. Pages two through eight drive the hardware (or its simulated twin) through the measurements described above; page nine persists the result.</figcaption>
+  </figure>
+
+  <h3>5.6 Live demonstration</h3>
+  <figure class="cad">
+    <img src="assets/images/kinematics_demo_frame.png" alt="Calibration wizard 3D sphere in sync with the physical head.">
+    <figcaption><span class="figno">Figure 21.</span> Still from the live motor-control demonstration. The 3D sphere in the Qt verify page tracks the physical head; the terminal below logs every <code>set_head_pose</code> command and the telemetry stream that confirms completion. The closed loop is: slider → inverse kinematics → <code>GroupSyncWrite</code> to both servos → shared <code>GOAL_TIME</code> → forward kinematics computed from the encoder readback → 3D preview update.</figcaption>
+  </figure>
+
+  <h3>5.7 Safety systems</h3>
+  <ul>
+    <li><strong>Thermal cutoff.</strong> <code>HeadController._check_temperature</code> polls each servo at 30 Hz and disables torque if the case temperature exceeds 65 °C (<code>motor.max_temperature_c</code>).</li>
+    <li><strong>Stall detection.</strong> If either motor's position error exceeds 30 ticks (about 1.3° at the head) for more than 1.5 s, the controller overwrites the goal with the current actual position: the servo stops pushing but still holds against gravity. See <code>motor.stall_position_error_ticks</code> and <code>stall_timeout_s</code>.</li>
+    <li><strong>GOAL_TIME synchronisation.</strong> The verify page and the face-tracker both issue commands with a shared 150 ms <code>GOAL_TIME</code>. Without this, a pure pan (equal and opposite motor deltas) transiently tilts when one motor finishes before the other.</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════ 6. SERVO BUS LESSONS ═══════════════════ -->
+<section id="servo-bus" class="chapter">
+  <h2>6. Servo bus lessons</h2>
+  <p>
+    The Feetech ST3215 is a capable smart serial servo, but a few of its protocol and firmware quirks cost real debugging time and are worth documenting for anyone reading the low-level bus code (<code>repo/companion/motor/bus.py</code>).
+  </p>
+  <ul>
+    <li>
+      <strong><code>scservo_sdk</code> endianness.</strong> The STS / SMS-series (which the ST3215 belongs to) requires <code>PacketHandler(0)</code> — little-endian. The wrong value silently byte-swaps every 2-byte register read and write; the symptom is that written values <em>look</em> correct on readback (symmetric swap) but the firmware internally sees transposed values. This manifests as seemingly inexplicable register behaviour (e.g. servos running in multi-turn mode after you explicitly wrote a single-turn range).
+    </li>
+    <li>
+      <strong>EEPROM lock and write timing.</strong> Register 55 (<code>LOCK</code>) defaults to 1 on power-up. EEPROM writes (including <code>ID</code>, angle limits, mode, offsets) only persist across a power cycle if the lock is cleared first and re-asserted after. Commits take roughly 10 ms to land; back-to-back writes need at least a 30 ms sleep, and the bus code retries on the <code>-6</code> "corrupt reply" error that a fast retry elicits.
+    </li>
+    <li>
+      <strong>Clamping <code>GOAL_POSITION</code> is wrong in multi-turn mode.</strong> If a servo is inadvertently left in multi-turn mode (e.g. factory default with <code>MIN_ANGLE_LIMIT = MAX_ANGLE_LIMIT = 0</code>), writing a goal clamped to <code>[0, 4095]</code> causes the servo to unwind through multiple turns to reach that absolute position. The bring-up <code>set-single-turn</code> command explicitly forces <code>MIN = 0, MAX = 4095, MODE = 0</code> to prevent this.
+    </li>
+    <li>
+      <strong><code>GOAL_TIME</code> synchronises two-motor moves.</strong> When both motors share a <code>GOAL_TIME</code> (registers 44–45), they reach the target in the same time window regardless of how far each one has to travel. This eliminates the transient cross-axis jitter that otherwise appears during pure-pan commands.
+    </li>
+  </ul>
+</section>
+
+<!-- ═══════════════════ 7. PERCEPTION ═══════════════════ -->
+<section id="perception" class="chapter">
+  <h2>7. Perception subsystems</h2>
+  <p>
+    URex's perception stack has two branches: an audio branch that drives turn-taking and conversation, and a vision branch that drives face tracking. Both are always running; both report into the ConversationManager and the face-tracker respectively.
+  </p>
+
+  <h3>7.1 Audio pipeline</h3>
+  <figure class="figure">
+    <img src="assets/figures/audio_pipeline.svg" alt="Top-down audio pipeline from microphone to speaker.">
+    <figcaption><span class="figno">Figure 22.</span> Audio pipeline. Mic capture runs in a dedicated thread; VAD state drives turn start / end; STT, LLM, and TTS run in the turn executor.</figcaption>
+  </figure>
+
+  <h4>Capture — <code>repo/companion/audio/io.py</code></h4>
+  <p>
+    <code>AudioInput</code> opens the ReSpeaker as a 16 kHz mono PyAudio stream (with an <code>arecord</code> subprocess fallback for environments where PyAudio's stream configuration fails). It yields 512-sample (32 ms) chunks — Silero VAD's native input size. A health-monitored watchdog flags the input as starved if no chunk arrives for two seconds, which surfaces to <code>HealthMonitor</code> and the TTS user-facing status.
+  </p>
+
+  <h4>ReSpeaker direction of arrival — <code>repo/companion/audio/respeaker.py</code></h4>
+  <p>
+    The 4-microphone array is interrogated over USB HID using XMOS's vendor control-transfer protocol. DOA is polled at 10 Hz and, together with the face-detector output, drives the conversation-engagement gate: the robot only engages when the user's voice direction matches the face's on-camera direction. LED feedback (12-RGB ring) is driven by the same module. The current calibrated offset is <code>doa_offset_deg = -93.48</code> (set once via the audio calibration tab).
+  </p>
+
+  <h4>Voice activity detection — <code>repo/companion/audio/vad.py</code></h4>
+  <p>
+    Silero VAD v5 runs as an ONNX session in CPU mode (see <a href="#constraints">§12</a> for why). Threshold is 0.35, tuned for the ReSpeaker's level profile. A lightweight state machine (<code>IDLE → SPEECH_START → SPEAKING → SPEECH_END</code>) calls back into the ConversationManager at the two transition points.
+  </p>
+
+  <h4>Speech-to-text — <code>repo/companion/audio/stt.py</code></h4>
+  <p>
+    Parakeet TDT 0.6B v3 is the primary backend, run as an ONNX graph on CUDA. The ONNX export consists of encoder, decoder, and joiner, and the STT path consumes a NeMo-aligned log-mel feature extractor. A five-second utterance transcribes in roughly 200 ms. Faster-whisper (base.en, CTranslate2) remains the fallback for environments where Parakeet can't be loaded.
+  </p>
+
+  <h4>Text-to-speech — <code>repo/companion/audio/tts.py</code></h4>
+  <p>
+    Piper is the default on the 8 GB budget: CPU-only, lightweight, approximately real-time. Kokoro is available as an alternative when quality is worth more than memory. The TTS engine supports a runtime <code>set_engine()</code> swap, so a future headroom-heavy session can enable Kokoro without restart.
+  </p>
+
+  <h4>Barge-in detection — <code>repo/companion/audio/barge_in.py</code></h4>
+  <p>
+    While the robot is speaking, the microphone signal contains a mix of the user (if they interrupt) and the robot's own TTS bleed. The barge-in detector subtracts an envelope estimate of the TTS output from the mic RMS (an AEC-lite), gates on Silero's VAD probability, requires the residual to exceed the tracked noise floor by at least 10 dB, and requires at least 120 ms of sustained voiced activity before deciding it is a real interrupt. This combination cancels the canonical false-positive scenarios (door slams, TV audio, robot echo) in practice.
+  </p>
+
+  <h3>7.2 Vision pipeline</h3>
+  <figure class="figure">
+    <img src="assets/figures/vision_pipeline.svg" alt="Top-down vision pipeline from camera to face tracker.">
+    <figcaption><span class="figno">Figure 23.</span> Vision pipeline. Integrated path (solid) runs face tracking at 15 Hz. Emotion classification (dashed) runs correctly standalone but is not part of the integrated build — see <a href="#constraints">§12</a>.</figcaption>
+  </figure>
+
+  <h4>Camera — <code>repo/companion/vision/camera.py</code></h4>
+  <p>
+    A GStreamer pipeline (<code>nvarguscamerasrc → NV12 NVMM → BGRx → BGR → appsink</code>) pulls 640 × 480 frames at 30 fps from the CSI port. The chain keeps all conversion on GPU memory until the last step, which minimises CPU load; a V4L2 path exists as a fallback for USB webcams. A 1.2 s auto-exposure settle at startup gives the ISP time to converge before the face detector starts consuming frames.
+  </p>
+
+  <h4>Face detection — <code>repo/companion/vision/face_detector.py</code></h4>
+  <p>
+    Rather than a dedicated face detector, URex uses <strong>YOLO26n-pose</strong> — a person-keypoint model — and synthesises a face bounding box from the head keypoints (nose, eye, ear). Two advantages follow: on a wide-angle camera, a keypoint-based estimator is more robust than a frontal-face detector, and the same model provides orientation-aware head pose (the eye midpoint is a better aim-point than a bbox centroid).
+  </p>
+
+  <h4>Vision pipeline orchestrator — <code>repo/companion/vision/pipeline.py</code></h4>
+  <p>
+    The <code>EmotionPipeline</code> class (misnamed historically — it is the top-level vision thread) runs at 30 fps, detects faces every second frame (15 Hz effective detection), carries state across frames with a 0.7 exponential moving average on position, and fades confidence to zero over three seconds if a face is lost. The output is consumed by the face tracker, which produces pan and tilt setpoints for the head servos.
+  </p>
+</section>
+
+<!-- ═══════════════════ 8. CONVERSATION ═══════════════════ -->
+<section id="conversation" class="chapter">
+  <h2>8. Conversation and LLM stack</h2>
+
+  <h3>8.1 Turn state machine</h3>
+  <figure class="figure">
+    <img src="assets/figures/state_machine.svg" alt="Conversation state machine.">
+    <figcaption><span class="figno">Figure 24.</span> Conversation state machine. The canonical turn path (IDLE_WATCHING → LISTENING → CAPTURING_INTENT → THINKING → SPEAKING → IDLE_WATCHING) is highlighted. Barge-in and error paths are drawn dashed to make the canonical flow read first.</figcaption>
+  </figure>
+  <p>
+    The state machine lives in <code>repo/companion/conversation/states.py</code> together with a table of legal transitions. Illegal transitions are rejected loudly — this is the mechanism that prevents race conditions like "a late STT arrival when the user has already started a new turn".
+  </p>
+
+  <h3>8.2 One turn, end-to-end</h3>
+  <figure class="figure">
+    <img src="assets/figures/turn_sequence.svg" alt="Left-to-right single-turn sequence.">
+    <figcaption><span class="figno">Figure 25.</span> One conversation turn. The spine is the speech-to-speech path; the face branch fires on every reply. Streaming STT, streaming TTS, and prefix caching in the LLM keep end-to-end latency below the target.</figcaption>
+  </figure>
+  <p>
+    The <code>ConversationManager</code> (<code>repo/companion/conversation/manager.py</code>) owns the turn lifecycle: engagement gates (face visible, min-speech duration, DOA concordance), streaming STT, prompt assembly, LLM generation, sentence-split → streaming TTS, and event emission into the bus. Every phase writes a timestamp into a per-turn <code>TurnTrace</code> so the telemetry layer can compute p50 / p95 latencies later.
+  </p>
+
+  <h3>8.3 LLM engine</h3>
+  <p>
+    The LLM engine (<code>repo/companion/llm/engine.py</code>) wraps <code>llama-cpp-python</code>. On the 8 GB budget the shipped default is <strong>Llama 3.2 1B</strong> (text-only, 4-bit GGUF, roughly 0.8 GB weight + KV cache). The codebase supports a drop-in swap to Gemma-4-e2b or e4b, and to the multimodal Gemma-4 with a projector, through a single line of <code>config.yaml</code>. The context window is configured to 1024 tokens — half the default — which alone halves KV cache memory growth and is the single biggest headroom win (see <a href="#constraints">§12</a>).
+  </p>
+
+  <h3>8.4 Prompt construction</h3>
+  <p>
+    Prompts are assembled in <code>repo/companion/llm/prompt.py</code> with three optional hint prefixes attached to the user message — emotion hint, scene hint, memory hint — and the system prompt instructs the LLM to append a terminal <code>[affect: happy | curious | confused | surprised | affectionate | sad | neutral]</code> tag on every reply. The tag is stripped from the spoken output and dispatched as a <code>FACE</code> command to the ESP32, driving the expression change visible in figures 16–17.
+  </p>
+</section>
+
+<!-- ═══════════════════ 9. INTEGRATION ═══════════════════ -->
+<section id="integration" class="chapter">
+  <h2>9. Integration and runtime infrastructure</h2>
+
+  <h3>9.1 Bring-up order</h3>
+  <figure class="figure">
+    <img src="assets/figures/bringup_order.svg" alt="Nine-step bring-up sequence.">
+    <figcaption><span class="figno">Figure 26.</span> Bring-up order. The LLM (red outline, step 3) is loaded before any ONNX model so its weights land in a single contiguous VRAM block — see the discussion in <a href="#constraints">§12</a>. Orchestration (steps 7 and 8) wires the leaf subsystems together only after they all successfully initialise.</figcaption>
+  </figure>
+
+  <h3>9.2 Event bus</h3>
+  <figure class="figure">
+    <img src="assets/figures/event_bus.svg" alt="Event bus fan-out between publishers and subscribers.">
+    <figcaption><span class="figno">Figure 27.</span> Event bus. A single async worker thread; handlers are exception-isolated (a failing subscriber never stops the others). Every turn emits a clean trail of events that telemetry reconstructs into a latency histogram.</figcaption>
+  </figure>
+
+  <h3>9.3 GPU arbiter</h3>
+  <p>
+    <code>repo/companion/core/gpu_arbiter.py</code> implements a cooperative two-priority lock. Realtime consumers (turn-time LLM, turn-time TTS) take a <code>realtime()</code> lease and always win; background consumers (scene captioning, telemetry compute) take a <code>background()</code> lease and poll <code>should_yield()</code> between iterations, dropping the lock when realtime is waiting. Because it is cooperative rather than preemptive, it avoids the priority-inversion scenarios that come with naive locking across GPU libraries.
+  </p>
+
+  <h3>9.4 Health monitor and readiness</h3>
+  <p>
+    <code>HealthMonitor</code> runs at 1 Hz and checks mic starvation, camera frame age, and motor over-temperature, publishing <code>HealthDegraded</code> events and surfacing a spoken warning through the TTS path when something goes wrong. The <code>readiness</code> check at startup audits every model-file path named in <code>config.yaml</code> and refuses to start the app if a critical model is missing — a deliberate choice: a half-booted system is harder to diagnose than a clean failure.
+  </p>
+
+  <h3>9.5 Telemetry</h3>
+  <p>
+    Every turn writes a JSONL trace to <code>logs/traces_&lt;date&gt;.jsonl</code> containing phase timestamps, token counts, the speaker label (if known), and the emotion snapshot at turn start. An in-memory ring buffer of 100 recent turns allows the GUI's latency card to show rolling p50 / p95.
+  </p>
+</section>
+
+<!-- ═══════════════════ 10. DISPLAY ═══════════════════ -->
+<section id="display" class="chapter">
+  <h2>10. Display and face</h2>
+
+  <h3>10.1 ESP32 firmware</h3>
+  <p>
+    The ESP32 runs an Arduino / PlatformIO firmware (<code>repo/firmware/companion_face/</code>) built on TFT_eSPI for the ILI9341 display and XPT2046_Touchscreen for the resistive touch panel. The face is rendered locally on the ESP32 — the Jetson only sends abstract state commands — which means the Jetson-ESP32 serial link carries tens of bytes per frame instead of a full framebuffer, and the display can animate at full refresh even when the Jetson is busy with a turn.
+  </p>
+
+  <h3>10.2 Serial protocol</h3>
+  <p>
+    115 200 baud, line-delimited ASCII, bidirectional.
+  </p>
+<pre><code># Jetson → ESP32
+FACE v=+0.72 a=+0.30 talk=1 listen=0 think=0 sleep=0 gaze=-12 privacy=0
+VISEME ahh
+SCENE face | quickgrid | morelist
+PRIVACY 1 | 0
+
+# ESP32 → Jetson
+BTN mute_mic | stop_talking | sleep | more | timer | remind_me
+TOUCH 120 185
+BOOT companion_face</code></pre>
+
+  <h3>10.3 Expression engine</h3>
+  <p>
+    Twelve expressions are available on the display: seven derived from valence / arousal (neutral, happy, excited, surprised, sad, angry, calm) and five explicit ornaments used when Russell's circumplex is not specific enough (confused, thinking, idea, love, wink, listening). The <code>[affect: …]</code> tag from the LLM selects among these; the running face tracker blends the base expression with a lip-sync envelope from the TTS during <code>SPEAKING</code>.
+  </p>
+
+  <h3>10.4 Real hardware face</h3>
+  <p>
+    The photographs in <a href="#mechanical">§4.8</a> are the display subsystem's output on the actual device. The eye shape, eyebrow angle, and mouth curve all change in response to the affect tag; the same display renders the quick-tile menu (<code>mute_mic</code>, <code>stop_talking</code>, <code>sleep</code>, <code>more</code>) when touched.
+  </p>
+
+  <h3>10.5 Qt GUIs</h3>
+  <p>
+    Three desktop windows exist for development and calibration. Each is styled with the same Catppuccin Mocha palette used in this report and on the ESP32 face, so the hand-off between tools is visually consistent.
+  </p>
+
+  <h4>Main window — <code>repo/companion/ui/main_window.py</code></h4>
+  <p>
+    A three-column dashboard. The left panel shows the conversation transcript and the push-to-talk button; the centre panel shows the state indicator, a Russell-circumplex emotion visualiser, and the latest scene caption; the right panel shows a DOA compass, a microphone RMS bar, STT latency, LLM token rate, and a small system monitor.
+  </p>
+
+  <h4>Calibration wizard — <code>repo/companion/ui/calibration_window.py</code></h4>
+  <p>
+    The nine-page motor bring-up described in <a href="#kinematics">§5.3</a>. Figure 20 in the kinematics chapter shows page one.
+  </p>
+
+  <h4>Debug GUI — <code>repo/tests/debug_gui.py</code></h4>
+  <p>
+    A five-tab window that exercises each subsystem in isolation: <em>Audio</em> (waveform, VAD probability, DOA compass), <em>STT</em> (record and transcribe with latency readout), <em>LLM</em> (one-shot chat prompt and reply), <em>Vision</em> (camera preview, face bounding box, emotion circumplex), and <em>Face</em> (trigger preset expressions on the ESP32).
+  </p>
+
+  <h4>Representative widgets</h4>
+  <p>
+    Because the main window and the debug GUI are composed of reusable widgets rather than standing alone, individual captures of the two most distinctive widgets are shown below. Both renders are the actual Qt output taken via an offscreen capture of the widget classes in <code>companion/ui/widgets/</code>.
+  </p>
+
+  <div class="figures-side-by-side">
+    <figure class="cad">
+      <img src="assets/images/gui_emotion_circumplex.png" alt="Russell's circumplex with a 'Happy' marker.">
+      <figcaption><span class="figno">Figure 29.</span> Emotion circumplex — Russell's valence / arousal plot. Eight anchors (Happy, Excited, Surprise, Fear, Anger, Disgust, Sad, Calm) with the current position shown as a filled dot. A fading trail is drawn behind the live point over recent frames. This is the widget the Awareness pane embeds.</figcaption>
+    </figure>
+    <figure class="cad">
+      <img src="assets/images/gui_doa_plot.png" alt="DOA polar plot showing direction of arrival.">
+      <figcaption><span class="figno">Figure 30.</span> DOA polar plot driven by the ReSpeaker. 0° is front, positive angles are to the right. The needle shows the current estimate; faded dots are the recent trail. When the head is connected, the same widget overlays a secondary marker at the current pan angle so DOA and head orientation can be compared at a glance.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ═══════════════════ 11. TESTING ═══════════════════ -->
+<section id="testing" class="chapter">
+  <h2>11. Testing and verification</h2>
+
+  <h3>11.1 Unit tests — <code>repo/tests/unit/</code></h3>
+  <p>
+    Deterministic tests for the parts that should never change unnoticed: config loader layering (YAML + env overrides), event-bus exception isolation, GPU-arbiter priority contract, conversation state-machine legality, turn barge-in, telemetry ring, and the LLM-reply affect-tag parser. Execution time is well under two seconds.
+  </p>
+
+  <h3>11.2 Kinematics tests — <code>repo/tests/test_motor_kinematics.py</code></h3>
+  <p>
+    Nine property-style tests on the pure-function kinematics: round-trip identity (<code>pose → ticks → pose</code>), centre pose maps to calibrated zero ticks, soft-limit clamping, pure pan produces opposite motor deltas, pure tilt produces equal motor deltas, gear ratio scales motor travel, axis inversion flips signs, non-zero calibration still works, and degrees ↔ ticks round-trip. These tests caught several sign errors during the bus-code bring-up.
+  </p>
+
+  <h3>11.3 Integration tests — <code>repo/tests/integration/</code></h3>
+  <p>
+    Two tests: a boot-smoke that imports every module and constructs every object without running the main loop (catches structural breakage before it hits a real device), and a HealthMonitor watchdog that injects a starved-mic condition and confirms the correct <code>HealthDegraded</code> event is published.
+  </p>
+
+  <h3>11.4 CLI probes — <code>repo/tests/cli.py</code></h3>
+  <p>
+    <code>python -m tests.cli &lt;probe&gt;</code> runs a per-subsystem sanity check: <code>env</code> (Python + CUDA + devices), <code>audio</code> (mic / VAD / DOA stream), <code>stt</code> (record + transcribe latency), <code>llm</code> (single-turn generation), <code>tts</code> (synthesise + play), <code>vision</code> (camera + face bbox FPS), <code>face &lt;preset&gt;</code> (drive the ESP32 through an affect), and <code>pipeline</code> (full end-to-end turn). <code>all</code> runs the core four and prints a pass / fail summary — useful as a bring-up acceptance check after a fresh install.
+  </p>
+
+  <h3>11.5 Notebook — <code>repo/setup_and_test.ipynb</code></h3>
+  <p>
+    A six-stage progressive bring-up notebook: dependencies → preflight → pytest → debug GUI → CLI <code>all</code> → simulated motors → real motors. Each stage runs a specific check; the last stage includes a latency-analysis cell that parses <code>logs/traces_*.jsonl</code> into a p50 / p95 histogram for the end-of-speech to first-audio metric.
+  </p>
+
+  <h3>11.6 Live demonstration</h3>
+  <p>
+    The kinematics still in Figure 21 is the integration-test evidence: the Qt calibration preview, the motor controller logs, and the physical head all respond to the same slider event within the same on-screen frame.
+  </p>
+</section>
+
+<!-- ═══════════════════ 12. CONSTRAINTS ═══════════════════ -->
+<section id="constraints" class="chapter">
+  <h2>12. Design under an 8 GB memory budget</h2>
+  <p>
+    This chapter is the honest accounting of why the integrated system is what it is. None of the decisions documented here are architectural compromises — they are resource decisions, forced by the unified 8 GB memory budget of the Jetson Orin Nano.
+  </p>
+
+  <h3>12.1 The budget</h3>
+  <p>
+    The Jetson Orin Nano has 8 GB of <em>unified</em> memory: the same DRAM serves CPU allocations, GPU allocations, and ISP / camera buffers. Once the OS, kernel drivers, Python runtime, and camera ring buffers are accounted for, roughly 5 GB is available for AI models and KV cache. Every model in the system competes for this same pool; there is no separate VRAM to fall back on.
+  </p>
+
+  <figure class="figure">
+    <img src="assets/figures/vram_budget.svg" alt="Memory footprint of the integrated build versus the dropped subsystems.">
+    <figcaption><span class="figno">Figure 28.</span> Memory footprint, approximately to scale. The top bar is what the integrated system actually holds; the bottom bar (hatched) is what was tested standalone but dropped to keep the voice loop within budget.</figcaption>
+  </figure>
+
+  <h3>12.2 Allocation-order fragmentation</h3>
+  <p>
+    Every ONNX Runtime session opens its own CUDA arena on first inference. Loading even a modest set of ONNX sessions (Silero VAD, Parakeet, HSEmotion, YOLO, an EOU transformer, Kokoro) before the LLM fragments the GPU heap enough that llama-cpp-python's request for a single ~1–2 GB contiguous block for model weights fails. The runtime setting <code>runtime.onnx_cuda_enabled: false</code> pushes ONNX to the CPU; the LLM keeps exclusive access to VRAM. The cost is modest: Silero VAD and YOLO are small enough that their CPU inference is fast, and Parakeet uses a separate CUDA session established <em>after</em> the LLM has claimed its block.
+  </p>
+
+  <h3>12.3 Context-length halving</h3>
+  <p>
+    The LLM is configured with <code>context_length: 1024</code>, half of the stock default. KV cache grows linearly with context length, so halving it halves the memory cost of the LLM across a running conversation. In practice, the system prompt (~120 tokens), the per-turn hint prefixes, and six conversation exchanges fit comfortably — the report never observed context overflow during testing. This is the single largest headroom gain and has no user-visible cost.
+  </p>
+
+  <h3>12.4 Text-only LLM shipped</h3>
+  <p>
+    URex was designed around a <strong>multimodal</strong> Gemma-4 configuration: the same LLM would answer "what do you see?" questions by fusing the camera frame with the user's question through a projector head. In isolation this worked. On the fully-integrated 8 GB budget — with Parakeet occupying its own CUDA allocation, camera buffers resident, and the YOLO face detector warm — the multimodal Gemma plus its projector could not be kept resident without reaching memory pressure severe enough to cause allocation failures mid-conversation. The shipped default is therefore <strong>Llama 3.2 1B, text-only</strong>. The multimodal path is still a single config-line swap away and the application code supports both; the <em>integrated</em> build ships text-only.
+  </p>
+
+  <h3>12.5 The capability cascade — no VLA in the integrated turn</h3>
+  <p>
+    The capabilities that depend on a resident multimodal LLM cascade: scene-aware replies ("describe what you see"), visual question answering ("what is this object?"), and any reply that wants to cite what the camera currently shows. URex's <code>SceneWatcher</code> and the <code>VQA</code> branch of the router exist in the code and were verified in isolation on the multimodal Gemma. They are not part of the integrated turn because their primary consumer — the multimodal LLM — is not loaded. This is the most significant single capability the final build lacks compared with the original design target, and it is framed honestly here: the plumbing works; the model does not fit.
+  </p>
+
+  <h3>12.6 Emotion classification — works, not integrated</h3>
+  <p>
+    The HSEmotion 8-class facial emotion classifier (<code>repo/companion/vision/emotion_classifier.py</code>) is functional. When <code>vision.emotion_enabled</code> is turned on in isolation, the pipeline produces per-frame emotion labels, valence / arousal coordinates on Russell's circumplex, and a smoothed state that drives the emotion-visualiser widget in the debug GUI. The subsystem test is reliable.
+  </p>
+  <p>
+    It is <em>not</em> active in the integrated build. Turning it on concurrently with the face detector, the LLM, Parakeet, the TTS, and the camera buffer caused sustained pressure on the 8 GB pool — in extended runs (tens of minutes of conversation) it would push into swap or hit an allocation failure. The project chose to keep the core voice loop reliable rather than let the system crash part-way through a conversation. The emotion pipeline is therefore <strong>proven at the subsystem level but not in the final integration</strong>, and is the first thing to re-enable once a memory re-profile confirms headroom.
+  </p>
+
+  <h3>12.7 The focus principle</h3>
+  <p>
+    The project's working rule throughout integration was: <em>prioritise a reliable core loop</em>. The core loop is — face tracker, voice in, text reasoning, voice out, face state — and it is what a user actually depends on during a conversation. Optional subsystems that can be added later without invalidating any existing code (persistent cross-session memory, per-speaker identification, semantic end-of-utterance) are disabled in config, not removed: they are visible to a reader of the codebase and one flag away from re-enabling once the memory budget is re-profiled.
+  </p>
+
+  <h3>12.8 Latency</h3>
+  <p>
+    The published target is <strong>end-of-speech to first TTS audio ≤ 800 ms</strong>, with an interrupt latency of roughly 300 ms. These are the configured targets in the README and the values the notebook latency-histogram cell is calibrated against; measured p95 values from the JSONL traces in execution are comparable on typical utterances (five to eight words) and degrade gracefully on longer inputs as Parakeet and the LLM each take more time.
+  </p>
+</section>
+
+<!-- ═══════════════════ 13. FUTURE WORK ═══════════════════ -->
+<section id="future-work" class="chapter">
+  <h2>13. Future work</h2>
+  <ol>
+    <li><strong>Emotion-in-the-loop.</strong> Bring HSEmotion back into the integrated build. The pipeline is wired; the blocker is memory, not code. A short profiling pass with <code>jtop</code> under a sustained turn load will confirm whether recent JetPack releases or smaller Parakeet quantisations leave enough headroom to keep the emotion branch on.</li>
+    <li><strong>Multimodal LLM in the integrated turn.</strong> A smaller Gemma projector, a more memory-efficient KV layout, or a shared-VRAM arrangement with Parakeet would unlock the scene-aware replies and VQA branches that were tested in isolation but dropped from the integrated build. This is the highest-impact single change on the roadmap.</li>
+    <li><strong>Custom wake-word training.</strong> The openWakeWord synthetic-data pipeline is already scaffolded in the repository. A modest data-collection pass (a few hundred voiced samples of "Hey Buddy" plus negatives) would close out the last non-always-on interaction mode.</li>
+    <li><strong>Persistent memory and speaker scoping.</strong> Mem0 + Chroma plus a speaker-ID model would let the companion remember facts about the person it is speaking with — particularly useful in a multi-household setting. This is a follow-up to the multimodal change (both are memory-side).</li>
+    <li><strong>Soft outer shell and tactile surface.</strong> The current build is a visible electromechanical prototype. A soft outer housing with capacitive or resistive touch-sensitive regions would close the form-factor loop and enable touch as a second input channel.</li>
+    <li><strong>Gesture / tail actuator.</strong> The behaviour layer already supports per-state gain and scheduled motion; a single extra degree of freedom (for example a tail or a shoulder twitch) would extend expressive motion beyond the face and head.</li>
+    <li><strong>User study.</strong> The design rests on the PARO / EMO / Qoobo literature but has not itself been evaluated with users. A small pilot in the intended companion setting would validate — or revise — the affective hypothesis.</li>
+  </ol>
+</section>
+
+<!-- ═══════════════════ 14. CONCLUSION ═══════════════════ -->
+<section id="conclusion" class="chapter">
+  <h2>14. Conclusion</h2>
+  <p>
+    URex realises the core of what an expressive, locally-hosted companion robot requires: a mechanically novel two-DOF head driven by a correct and calibrated differential-bevel kinematic model; a voice-interaction loop that reliably listens, reasons, and speaks without a network round-trip; a programmable touchscreen face that reflects the conversation state; and a runtime architecture that keeps those components scheduled on a single 8 GB edge AI board.
+  </p>
+  <p>
+    The gap between the full design and the shipped integration — no multimodal replies in the current build, no affect perception running concurrently with the voice loop — is a resource story, not an architectural one. The plumbing for both is present, tested at the subsystem level, and one headroom improvement away from the integrated path. The future-work roadmap is ordered by what unblocks the most capability per unit of memory recovered.
+  </p>
+  <p>
+    The primary technical contribution is the mechanical head: the iteration history in <a href="#mechanical">§4</a> and the kinematics in <a href="#kinematics">§5</a> document a compact, printable two-input gearbox that produces two independent head-frame degrees of freedom from two off-the-shelf smart servos, and that is bring-up-able end-to-end through a wizard that writes its calibration back to the project's config. Taken together with the software stack, URex is a complete platform for continued research into embodied, on-device affective AI.
+  </p>
+</section>
+
+<hr>
+
+<!-- ═══════════════════ APPENDIX A ═══════════════════ -->
+<section id="appendix-a" class="chapter">
+  <h2>Appendix A — Repository layout</h2>
+<pre><code>robotic-companion/
+├── companion/
+│   ├── audio/          mic, VAD, STT, TTS, ReSpeaker, barge-in
+│   ├── vision/         camera, face detector, tracker, pipeline
+│   ├── motor/          bus, controller, kinematics, calibration, CLI
+│   ├── llm/            engine, prompt, memory, router
+│   ├── conversation/   turn, state machine, manager, coordinator
+│   ├── behavior/       engine, tracking (per-state gain)
+│   ├── display/        renderer, backends (pygame, esp32_serial)
+│   ├── ui/             Qt main window, calibration wizard, widgets
+│   ├── tools/          timer, remind_me, volume, time_weather
+│   └── core/           config, event_bus, events, health, readiness,
+│                       telemetry, logging, GPU arbiter
+├── firmware/
+│   └── companion_face/ PlatformIO project — ESP32 face firmware
+├── tests/
+│   ├── unit/           deterministic subsystem tests
+│   ├── integration/    boot smoke, HealthMonitor watchdog
+│   ├── cli.py          per-subsystem sanity probes
+│   └── debug_gui.py    five-tab Qt debug window
+├── scripts/            setup.sh, download_models.py, flash_firmware.sh,
+│                       verify.py, preflight.py
+├── docs/               this report (self-contained HTML)
+├── assets/             CAD renders, photographs, proposal
+├── models/             LLM, STT, TTS, vision models (downloaded)
+├── config.yaml         the single source of configuration
+├── main.py             bring-up entry point
+└── setup_and_test.ipynb  progressive bring-up notebook</code></pre>
+  <p>Full code at <a href="https://github.com/Yogee-s/robotic-companion">github.com/Yogee-s/robotic-companion</a>.</p>
+</section>
+
+<!-- ═══════════════════ APPENDIX B ═══════════════════ -->
+<section id="appendix-b" class="chapter">
+  <h2>Appendix B — Configuration summary</h2>
+  <p>Every section of <code>config.yaml</code> controls one subsystem; the table below gives a one-line description per section. The full key-by-key schema is <code>repo/companion/core/config.py</code>.</p>
+  <table>
+    <thead><tr><th>Section</th><th>What it controls</th></tr></thead>
+    <tbody>
+      <tr><td><code>app</code></td><td>App name, data / log directories, log level, dialect flag.</td></tr>
+      <tr><td><code>hardware</code></td><td>Preferred mic and speaker names, camera sensor id, ESP32 serial port.</td></tr>
+      <tr><td><code>llm</code></td><td>Active model, paths, GPU layers, context length, generation parameters, system prompt.</td></tr>
+      <tr><td><code>stt</code></td><td>Backend choice (Parakeet / Whisper), model paths, streaming, language.</td></tr>
+      <tr><td><code>tts</code></td><td>Engine (Piper / Kokoro), voice, speaking rate, output sample rate.</td></tr>
+      <tr><td><code>vad</code></td><td>Silero threshold, silence and speech duration gates.</td></tr>
+      <tr><td><code>audio</code></td><td>Sample rate, channels, chunk size, input gain.</td></tr>
+      <tr><td><code>respeaker</code></td><td>USB IDs, LED brightness, DOA enable, calibrated DOA offset.</td></tr>
+      <tr><td><code>vision</code></td><td>Camera resolution and fps, face detector path and threshold, smoothing, staleness fade.</td></tr>
+      <tr><td><code>display</code></td><td>Renderer backend, size, serial port, menu auto-dismiss.</td></tr>
+      <tr><td><code>conversation</code></td><td>Interaction mode, history length, verbosity, engagement gates.</td></tr>
+      <tr><td><code>motor</code></td><td>Servo ids, calibration outputs, soft limits, motion and safety.</td></tr>
+      <tr><td><code>runtime</code></td><td>Cross-cutting knobs — ONNX GPU toggle, behavior tick rate, telemetry ring size.</td></tr>
+      <tr><td><code>gui</code></td><td>Main window size, theme, update intervals.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="site-footer">
+  URex technical report · Source: <a href="https://github.com/Yogee-s/robotic-companion">github.com/Yogee-s/robotic-companion</a>
+</footer>
+
+</article>
+</main>
+</div>
+
+<script src="assets/js/nav.js"></script>
+</body>
+</html>
