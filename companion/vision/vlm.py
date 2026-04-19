@@ -1,13 +1,13 @@
-"""Moondream-2 VLM sidecar.
+"""Optional standalone Moondream-2 VLM (debug/testing only).
 
-Loaded via llama-cpp-python's multimodal path (mmproj). Gives the robot
-eyes: scene captioning + visual question answering. Always runs on its
-own cadence (1-2 Hz in a background thread) so it never blocks the
-conversation loop; per-query latency on Jetson Orin Nano is ~400-700 ms.
+**Production no longer uses this.** Main.py and SceneWatcher now call
+the multimodal Gemma via `LLMEngine.caption()` / `LLMEngine.answer()`,
+which uses the same model already loaded for chat — saving the ~3 GB
+Moondream would otherwise take.
 
-Two entry points:
-  - `caption(frame)` → one-line scene description (for ambient awareness)
-  - `answer(frame, question)` → VQA for "what is this?" style questions
+This module is kept for the VLM tab in `tests/debug_gui.py` so a
+developer can still benchmark Moondream side-by-side against multimodal
+Gemma if they want to. It is never instantiated by `main.py`.
 """
 
 from __future__ import annotations
@@ -31,11 +31,13 @@ class MoondreamVLM:
         mmproj_path: str = "",
         enabled: bool = True,
         max_tokens: int = 80,
+        n_gpu_layers: int = 0,
     ) -> None:
         self.model_path = model_path
         self.mmproj_path = mmproj_path
         self.enabled = enabled
         self.max_tokens = int(max_tokens)
+        self.n_gpu_layers = int(n_gpu_layers)
         self._llm = None
         self._handler = None
         self._lock = threading.Lock()
@@ -44,14 +46,14 @@ class MoondreamVLM:
 
     def _load(self) -> None:
         if not os.path.exists(self.model_path):
-            log.warning(f"Moondream model not found at {self.model_path}; VLM disabled.")
+            log.info("Moondream model not at %s; VLM disabled.", self.model_path)
             self.enabled = False
             return
         try:
             from llama_cpp import Llama  # type: ignore
             from llama_cpp.llama_chat_format import MoondreamChatHandler  # type: ignore
         except ImportError:
-            log.warning("llama-cpp-python lacks multimodal support — VLM disabled.")
+            log.info("llama-cpp-python lacks multimodal support; VLM disabled.")
             self.enabled = False
             return
         try:
@@ -59,15 +61,15 @@ class MoondreamVLM:
             self._llm = Llama(
                 model_path=self.model_path,
                 chat_handler=handler,
-                n_gpu_layers=-1,
+                n_gpu_layers=self.n_gpu_layers,
                 n_ctx=2048,
                 n_batch=256,
                 verbose=False,
             )
             self._handler = handler
-            log.info(f"Moondream-2 VLM loaded (model={self.model_path})")
+            log.info("Moondream-2 VLM loaded (%s)", self.model_path)
         except Exception as exc:
-            log.warning(f"Moondream load failed: {exc!r}")
+            log.warning("Moondream load failed: %r", exc)
             self.enabled = False
             self._llm = None
 
@@ -75,14 +77,12 @@ class MoondreamVLM:
     def available(self) -> bool:
         return self.enabled and self._llm is not None
 
-    # ── public API ───────────────────────────────────────────────────────
     def caption(self, frame_bgr: np.ndarray) -> Optional[str]:
         return self._ask(frame_bgr, "Describe the scene in one sentence.")
 
     def answer(self, frame_bgr: np.ndarray, question: str) -> Optional[str]:
         return self._ask(frame_bgr, question)
 
-    # ── implementation ───────────────────────────────────────────────────
     def _ask(self, frame_bgr: np.ndarray, question: str) -> Optional[str]:
         if not self.available or frame_bgr is None or frame_bgr.size == 0:
             return None
@@ -105,7 +105,7 @@ class MoondreamVLM:
                 )
                 return out["choices"][0]["message"]["content"].strip()
             except Exception as exc:
-                log.debug(f"Moondream inference failed: {exc!r}")
+                log.debug("Moondream inference failed: %r", exc)
                 return None
 
     @staticmethod

@@ -54,18 +54,32 @@ class FunctionGemma:
             log.warning(f"FunctionGemma model not found at {self.model_path}; disabled.")
             self.enabled = False
             return
-        try:
-            self._llm = Llama(
-                model_path=self.model_path,
-                n_gpu_layers=-1,
-                n_ctx=1024,
-                n_batch=256,
-                verbose=False,
-            )
-            log.info(f"FunctionGemma-270M loaded from {self.model_path}")
-        except Exception as exc:
-            log.warning(f"FunctionGemma load failed: {exc!r}")
-            self.enabled = False
+        # First try to offload to GPU — much faster. On Jetson Orin Nano
+        # the main LLM + vision ONNX sessions can saturate VRAM; fall
+        # back to CPU if the GPU context fails to allocate (NvMap error).
+        for n_gpu_layers in (-1, 0):
+            try:
+                self._llm = Llama(
+                    model_path=self.model_path,
+                    n_gpu_layers=n_gpu_layers,
+                    n_ctx=1024,
+                    n_batch=256,
+                    verbose=False,
+                )
+                placement = "GPU" if n_gpu_layers != 0 else "CPU"
+                log.info(
+                    f"FunctionGemma-270M loaded from {self.model_path} ({placement})"
+                )
+                return
+            except Exception as exc:
+                if n_gpu_layers != 0:
+                    log.info(
+                        f"FunctionGemma GPU load failed ({exc!r}) — falling back to CPU."
+                    )
+                else:
+                    log.warning(f"FunctionGemma load failed on CPU too: {exc!r}")
+                    self.enabled = False
+                    self._llm = None
 
     @property
     def available(self) -> bool:

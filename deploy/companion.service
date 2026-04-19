@@ -1,0 +1,31 @@
+[Unit]
+Description=Robotic Companion
+After=network-online.target sound.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Run as the human user, not root — PyAudio / CUDA / X display access
+# are all per-user on Jetson.
+User=yogee
+Group=yogee
+WorkingDirectory=/home/yogee/Desktop/robotic-companion
+ExecStart=/home/yogee/Desktop/robotic-companion/companion_env/bin/python main.py
+
+# Give the process 10 s to shut down cleanly before SIGKILL — enough
+# for HeadController.home() + torque disable to run.
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+# Environment — pyaudio needs DISPLAY/XAUTHORITY when Qt is used; if
+# running headless strip those out and rely on PyQt5's xcb fallback
+# reaching the system's framebuffer (or use Xvfb).
+Environment=DISPLAY=:0
+# Environment=XAUTHORITY=/home/yogee/.Xauthority
+
+StandardOutput=append:/home/yogee/Desktop/robotic-companion/logs/stdout.log
+StandardError=append:/home/yogee/Desktop/robotic-companion/logs/stderr.log
+
+[Install]
+WantedBy=multi-user.target

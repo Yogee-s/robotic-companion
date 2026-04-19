@@ -51,19 +51,20 @@ def build_system_prompt(
 
 def format_emotion_hint(
     current: Optional[EmotionHint],
-    last: Optional[EmotionHint],
+    last: Optional[EmotionHint],  # kept for signature compatibility; unused
     *,
     confidence_floor: float = 0.5,
-    valence_delta: float = 0.3,
 ) -> Optional[str]:
-    """Return the hint string to prepend, or None to skip injection."""
+    """Return the hint string to prepend, or None if emotion is too uncertain.
+
+    The plan originally gated injection on "has changed since last turn"
+    but that throttled the signal so coarsely the LLM often never saw it
+    — the robot was blind to sustained emotional state. Now we inject on
+    every turn as long as confidence ≥ floor. The LLM is steered by the
+    current feeling, not a delta from the last one.
+    """
     if current is None or current.confidence < confidence_floor:
         return None
-    if last is not None:
-        label_unchanged = current.label == last.label
-        valence_stable = abs(current.valence - last.valence) < valence_delta
-        if label_unchanged and valence_stable:
-            return None
     return (
         f"[user_emotion: {current.label} conf={current.confidence:.2f} "
         f"v={current.valence:+.2f} a={current.arousal:+.2f}]"

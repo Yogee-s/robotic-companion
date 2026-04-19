@@ -9,41 +9,49 @@ happens on-device — no cloud, no API keys.
 
 ## Features
 
-- **Natural voice loop** — mic → VAD → STT → LLM → TTS → speaker with
-  streaming: TTS starts on the first sentence while the LLM is still
-  generating.
-- **Interruption** — speak while the robot is replying; it stops within
-  ~300 ms and listens.
-- **Semantic end-of-turn** — a small transformer decides whether you're
-  actually finished or just paused, so the robot stops cutting you off.
-- **Emotion-aware** — the camera runs an 8-emotion classifier and a
-  valence/arousal signal is injected into the LLM prompt (gated so it
-  never spams context).
-- **Scene awareness** — Moondream-2 captions the camera feed 1–2 times a
-  second, and the caption is available to the LLM as context.
-- **Visual Q&A** — ask "what am I holding?" / "can you read this?" and
-  the VLM answers from the current frame.
-- **Persistent memory** — Mem0 + local Chroma, per-speaker scope. Next
-  time you talk, the robot can recall what you said yesterday.
-- **Speaker ID** — TitaNet-L embeddings identify who is speaking so
-  memory + tone can be personalised.
-- **Wake word** — optional "Hey Buddy" idle-listening mode via
-  openWakeWord (disabled by default).
-- **Tool calling** — a 270 M FunctionGemma sidecar routes *"set a timer
-  for 5 minutes"* and friends to real callable tools.
-- **Touchscreen face** — custom ESP32 firmware on a Diymore 2.8"
-  240×320 display renders the face locally; Jetson sends tiny state
-  commands over serial at 30 Hz; tap the screen to reveal 4 big buttons
-  (mute / stop / sleep / more). Pygame fallback runs on HDMI for
-  development.
-- **DOA-driven gaze** — the face's eyes glance toward whoever is
-  speaking, using ReSpeaker beam-forming.
-- **Lip-sync** — Rhubarb viseme timings drive the mouth during TTS
-  playback.
-- **Proactive mode (opt-in)** — the robot can greet familiar faces and
-  check in when you seem sad. Rate-limited.
-- **Privacy toggle** — cover the camera in software (face shows a
-  "blindfold" band).
+- **Natural continuous conversation** — no wake word. The robot is
+  always listening, but a turn only triggers when a face is visible, the
+  utterance was long enough (≥400 ms voiced), and DOA lines up with the
+  face. TV across the room is ignored; you get the robot's attention by
+  standing in front of it and speaking.
+- **Fast reply** — streaming STT → LLM KV-cache prefill → short-opener
+  prompt → streaming TTS → persistent aplay. Target end-of-speech to
+  first audio: ≤ 800 ms.
+- **Interrupt anywhere** — speak while the robot is *thinking* or
+  *speaking*; the in-flight turn cancels within ~300 ms. False-positive
+  barge-in detection (noise-floor + Silero VAD + envelope AEC-lite)
+  rejects door slams and the robot's own echo.
+- **Embodied tracking** — two ST3215 servos in a differential bevel
+  gearbox drive a 2-DOF head that smoothly tracks your face. Gain drops
+  during `THINKING` so the head holds still while the LLM is composing.
+- **Emotion-aware** — YOLO26n-pose + HSEmotion 8-class classifier
+  produce valence/arousal; every turn, the current emotion is injected
+  into the LLM prompt.
+- **Affect-tagged expressions** — LLM replies end with a terminal tag
+  `[affect: happy | curious | confused | surprised | affectionate | sad]`
+  that fires a 1.2 s ornament on the ESP32 face.
+- **Visemes** — TTS PCM envelope drives the mouth during speech.
+- **Unified multimodal model** — the same Gemma-4 that handles chat also
+  answers visual questions ("what is this?") and captions the scene in
+  the background. Moondream was consolidated away.
+- **Scene awareness** — background captioning at 0.5 Hz, paused
+  automatically during active turns via `GPUArbiter`.
+- **Persistent memory** — Mem0 + Chroma, per-speaker.
+- **Speaker ID** — TitaNet-L embeddings.
+- **Tool calling** — FunctionGemma 270 M sidecar routes "set a timer"
+  and friends to callables.
+- **Touchscreen face** — Diymore 2.8" display over ESP32 serial; four
+  working tiles (Mute mic · Stop · Sleep · More → Volume / Restart).
+- **Observable** — every turn writes a JSONL trace with phase timestamps
+  (`logs/traces_<date>.jsonl`).
+- **Watchdog + graceful degradation** — `HealthMonitor` detects starved
+  mic / frozen camera / over-temp motor; `Coordinator` announces via TTS
+  and falls back where possible.
+- **Readiness gate** — `python main.py` fails loudly on a missing model
+  file rather than booting half-dead.
+- **Layered config** — `config.yaml` ← `config.local.yaml` (gitignored)
+  ← `COMPANION_<SECTION>_<KEY>` env vars. Per-device overrides without
+  touching the checked-in defaults.
 
 ## Hardware
 
@@ -71,11 +79,16 @@ python3 scripts/download_models.py
 # 3. Flash the ESP32 face firmware (with the screen plugged in)
 bash scripts/flash_firmware.sh
 
-# 4. Run
+# 4. (optional) Preflight — verifies every model path in config.yaml exists
+python3 scripts/preflight.py
+
+# 5. Run
 python3 main.py
 ```
 
-Press **SPACE** to talk.
+**No button to press.** Walk into view of the camera and speak
+naturally. The robot will engage when it sees a face and hears enough
+voiced speech. To mute / stop / sleep, tap the touchscreen.
 
 ## Everyday commands
 
@@ -119,14 +132,17 @@ Restart the app; that's it.
 ```
 robotic-companion/
 ├── companion/
-│   ├── core/          config.py + logging.py + events.py + proactive.py
+│   ├── core/          config + event_bus + events + errors + gpu_arbiter
+│   │                  + health + onnx_runtime + readiness + telemetry + logging + proactive
 │   ├── audio/         io + vad + stt (Parakeet+Whisper) + tts (Kokoro+Piper)
-│   │                  + eou + wake_word + speaker_id + respeaker
-│   ├── vision/        camera + face_detector (YuNet) + emotion_classifier
-│   │                  + pipeline + vlm (Moondream) + scene_watcher
-│   ├── llm/           engine (Gemma 4) + prompt + memory + function_gemma + router
+│   │                  + eou + speaker_id + respeaker + lip_sync + barge_in
+│   ├── vision/        camera + face_detector + emotion_classifier
+│   │                  + pipeline + scene_watcher (+ legacy vlm.py for the debug GUI only)
+│   ├── llm/           engine (Gemma 4 multimodal) + prompt + memory + function_gemma + router
 │   ├── tools/         registry + timer + volume + remind_me + stopwatch + time_weather
-│   ├── conversation/  manager — orchestrates the pipeline
+│   ├── behavior/      engine (20 Hz motor + face-display tick) + tracking (per-state gain)
+│   ├── conversation/  manager (Turn lifecycle + engagement gates + streaming) + coordinator
+│   │                  + states + turn
 │   ├── display/       renderer + face-state + lip-sync + pygame & esp32_serial backends
 │   └── ui/            theme + shared widgets + main_window
 ├── tests/             cli.py (terminal) + debug_gui.py (tabbed)

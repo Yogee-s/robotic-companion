@@ -57,3 +57,20 @@ def volume_down() -> str:
     except Exception:
         current = 50
     return set_volume(max(0, current - 10))
+
+
+@tool("volume", "Report the current speaker volume. Triggered by the touchscreen Volume tile.")
+def volume() -> str:
+    """Announce the current volume. Used by the touchscreen `Volume` tile."""
+    try:
+        result = subprocess.run(
+            ["amixer", "sget", "Master"], capture_output=True, text=True, timeout=3.0
+        )
+        import re
+        m = re.search(r"\[(\d+)%\]", result.stdout)
+        current = int(m.group(1)) if m else None
+    except Exception:
+        current = None
+    if current is None:
+        return "I couldn't read my volume setting."
+    return f"My volume is at {current} percent."

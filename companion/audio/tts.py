@@ -138,17 +138,30 @@ class TextToSpeech:
             start = time.time()
             espeak_kwargs = self._get_espeak_config()
 
-            # Build optimized CPU session (CUDA is slower for this model)
-            import onnxruntime as ort
-            sess_opts = ort.SessionOptions()
-            sess_opts.intra_op_num_threads = os.cpu_count() or 6
-            sess_opts.inter_op_num_threads = 2
-            sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            sess = ort.InferenceSession(
-                model_path,
-                sess_options=sess_opts,
-                providers=["CPUExecutionProvider"],
-            )
+            # Prefer CUDA — Kokoro fp16 runs 1.5-2x faster on GPU than CPU
+            # on Jetson Orin. Fall back to an optimized CPU session if CUDA
+            # is unavailable or the ONNX graph isn't compatible.
+            from companion.core.onnx_runtime import make_session
+
+            try:
+                sess = make_session(model_path, prefer_gpu=True)
+                placement = sess.get_providers()[0].replace("ExecutionProvider", "")
+            except Exception as exc:
+                logger.info(
+                    "Kokoro CUDA session failed (%r) — using optimized CPU session.",
+                    exc,
+                )
+                import onnxruntime as ort
+                sess_opts = ort.SessionOptions()
+                sess_opts.intra_op_num_threads = os.cpu_count() or 6
+                sess_opts.inter_op_num_threads = 2
+                sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                sess = ort.InferenceSession(
+                    model_path,
+                    sess_options=sess_opts,
+                    providers=["CPUExecutionProvider"],
+                )
+                placement = f"CPU, {sess_opts.intra_op_num_threads} threads"
 
             self._kokoro = Kokoro.from_session(sess, voices_path, **espeak_kwargs)
 
@@ -163,7 +176,7 @@ class TextToSpeech:
             variant = "fp16" if "fp16" in model_path else "fp32"
             logger.info(
                 f"Kokoro TTS loaded in {time.time() - start:.1f}s "
-                f"({variant}, CPU, {sess_opts.intra_op_num_threads} threads)"
+                f"({variant}, {placement})"
             )
             return True
         except ImportError:

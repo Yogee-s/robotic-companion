@@ -48,16 +48,10 @@ class EndOfUtteranceDetector:
             )
             return
         try:
-            import onnxruntime as ort  # type: ignore
+            from companion.core.onnx_runtime import make_session
 
-            providers = (
-                ["CUDAExecutionProvider", "CPUExecutionProvider"]
-                if "CUDAExecutionProvider" in ort.get_available_providers()
-                else ["CPUExecutionProvider"]
-            )
-            self._session = ort.InferenceSession(self.model_path, providers=providers)
+            self._session = make_session(self.model_path)
             self._available = True
-            log.info(f"EOU model loaded ({providers[0]})")
         except Exception as exc:
             log.warning(f"EOU load failed: {exc!r} — using acoustic VAD only.")
 

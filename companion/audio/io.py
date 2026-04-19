@@ -35,6 +35,17 @@ class AudioInput:
         self.channels = config.get("channels", 1)
         self.chunk_size = config.get("chunk_size", 512)
         self.device_name = config.get("input_device_name", "ReSpeaker")
+        self.input_gain = float(config.get("input_gain", 1.0))
+        # Periodic RMS logging: every N seconds, emit the current chunk's
+        # RMS so bring-up users can see real-time mic levels and decide
+        # if input_gain needs tuning.
+        self._last_rms_log_ts: float = 0.0
+        self._rms_log_interval_s: float = 2.0
+        # Fan-out taps: every post-gain chunk is also delivered to
+        # registered callbacks. Used by the debug PTT path to capture a
+        # window of audio without stealing from the main loop's queue.
+        self._taps: list = []
+        self._taps_lock = threading.Lock()
 
         self._pa = None
         self._stream = None
@@ -44,6 +55,9 @@ class AudioInput:
         self._device_index = None
         self._use_arecord = False
         self._arecord_proc = None
+        # Last time a chunk was enqueued — used by HealthMonitor to detect
+        # a silent mic (device disconnected, driver wedged).
+        self._last_enqueue_ts: float = 0.0
 
         if pyaudio is not None:
             try:
@@ -171,6 +185,27 @@ class AudioInput:
 
     def _enqueue(self, audio: np.ndarray):
         """Put chunk in queue, dropping oldest if full."""
+        if self.input_gain != 1.0:
+            audio = np.clip(audio * self.input_gain, -1.0, 1.0)
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        if self._last_enqueue_ts == 0.0:
+            logger.info(
+                "First audio chunk received (len=%d, rms=%.4f, gain=%.1fx) — mic is delivering.",
+                len(audio), rms, self.input_gain,
+            )
+        now = time.time()
+        if now - self._last_rms_log_ts >= self._rms_log_interval_s:
+            self._last_rms_log_ts = now
+            logger.info("Mic RMS: %.4f (gain=%.1fx)", rms, self.input_gain)
+        # Fan-out to any registered taps (copy the list under lock, call
+        # outside so a slow/misbehaving tap can't block capture).
+        with self._taps_lock:
+            taps = list(self._taps)
+        for cb in taps:
+            try:
+                cb(audio)
+            except Exception as exc:
+                logger.debug("Audio tap raised: %r", exc)
         try:
             self._audio_queue.put_nowait(audio)
         except queue.Full:
@@ -179,6 +214,30 @@ class AudioInput:
             except queue.Empty:
                 pass
             self._audio_queue.put_nowait(audio)
+        self._last_enqueue_ts = time.time()
+
+    def add_tap(self, callback) -> None:
+        """Register a per-chunk callback. `callback(audio: np.ndarray)` is
+        called for every post-gain chunk. Callbacks should be fast and
+        non-blocking; exceptions are caught + logged at DEBUG."""
+        with self._taps_lock:
+            self._taps.append(callback)
+
+    def remove_tap(self, callback) -> None:
+        with self._taps_lock:
+            try:
+                self._taps.remove(callback)
+            except ValueError:
+                pass
+
+    @property
+    def last_enqueue_ts(self) -> float:
+        return self._last_enqueue_ts
+
+    @property
+    def is_starved(self) -> bool:
+        """True if no chunk has been enqueued in > 2 s (mic is silent)."""
+        return self._running and (time.time() - self._last_enqueue_ts) > 2.0
 
     def read(self, timeout: float = 1.0) -> np.ndarray | None:
         """Read one float32 audio chunk. Returns None on timeout."""
@@ -410,8 +469,14 @@ class AudioOutput:
 
     @property
     def recently_played(self) -> bool:
-        """True if playback ended less than 0.5s ago (echo cooldown)."""
-        return (time.time() - self._last_play_end) < 0.5
+        """True if playback ended recently enough to risk self-trigger from echo.
+
+        Cooldown widens with volume: at volume ≥ 0.7 the cooldown extends
+        to 0.9 s because the speaker can bleed into the mic harder and take
+        longer to decay below the VAD threshold.
+        """
+        cooldown = 0.9 if self._volume >= 0.7 else 0.5
+        return (time.time() - self._last_play_end) < cooldown
 
     @property
     def volume(self) -> float:

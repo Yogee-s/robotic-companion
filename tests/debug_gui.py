@@ -237,6 +237,28 @@ class SharedRenderer:
         return self._renderer
 
 
+class SharedLLM:
+    """Reference to the currently-loaded LLMEngine. When LLM was loaded
+    multimodally (mmproj present), VLMTab reads this to reuse the same
+    model for image captioning — no separate Moondream needed."""
+
+    def __init__(self) -> None:
+        self._llm = None
+        self._lock = threading.Lock()
+
+    def set(self, llm) -> None:
+        with self._lock:
+            self._llm = llm
+
+    def clear(self) -> None:
+        with self._lock:
+            self._llm = None
+
+    @property
+    def llm(self):
+        return self._llm
+
+
 # Map EmotionClassifier labels → FaceState.expression hints so detected
 # emotions get the same distinctive ornaments as the Face-display presets.
 _EMOTION_TO_EXPRESSION = {
@@ -880,14 +902,20 @@ class LLMTab(QWidget):
     metric_signal = pyqtSignal(float, float)
     loaded_signal = pyqtSignal(bool, str)  # success, message
 
-    def __init__(self, cfg: AppConfig) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        shared_llm: Optional["SharedLLM"] = None,
+    ) -> None:
         super().__init__()
         self.cfg = cfg
+        self._shared_llm = shared_llm
         self._llm = None
         self._generating = False
 
         s = _Scaffold(self, "LLM chat",
-                      "Load a Gemma 4 variant and chat. Tok/s and prompt-eval time update per turn.")
+                      "Load a Gemma 4 variant and chat. Tok/s and prompt-eval time update per turn. "
+                      "If llm.mmproj_path is set, the same model also serves the VLM tab.")
 
         self._model_combo = QComboBox()
         self._model_combo.addItems(list(cfg.llm.model_paths.keys()))
@@ -947,10 +975,18 @@ class LLMTab(QWidget):
             import traceback
             try:
                 from companion.llm.engine import LLMEngine
-                llm = LLMEngine(self.cfg.llm, model_path=path)
+                mmproj = (
+                    self.cfg.abspath(self.cfg.llm.mmproj_path)
+                    if getattr(self.cfg.llm, "mmproj_path", "") else ""
+                )
+                llm = LLMEngine(self.cfg.llm, model_path=path, mmproj_path=mmproj)
                 llm.load()
                 self._llm = llm
-                self.loaded_signal.emit(True, f"Loaded {self.cfg.llm.model}.")
+                # Publish to SharedLLM so VLMTab can reuse for image answers.
+                if self._shared_llm is not None:
+                    self._shared_llm.set(llm)
+                mm = " (multimodal)" if llm.is_multimodal else ""
+                self.loaded_signal.emit(True, f"Loaded {self.cfg.llm.model}{mm}.")
             except Exception as exc:
                 log.error("LLM load failed:\n%s", traceback.format_exc())
                 self.loaded_signal.emit(False, f"Load failed: {exc}")
@@ -1547,27 +1583,48 @@ class VLMTab(QWidget):
     done_signal = pyqtSignal(str, float)
     frame_signal = pyqtSignal(object)
 
-    def __init__(self, cfg: AppConfig) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        shared_vision: Optional["SharedVision"] = None,
+        shared_llm: Optional["SharedLLM"] = None,
+    ) -> None:
         super().__init__()
         self.cfg = cfg
         self._vlm = None
+        self._sv = shared_vision
+        self._shared_llm = shared_llm
+        self._preview_acquired = False
+        # Last frame seen in the live preview — used when the user clicks
+        # Ask / Caption so we don't re-open the camera if it's already live.
+        self._last_preview_frame = None
 
         s = _Scaffold(self, "Scene understanding (VLM)",
-                      "Captures one frame from the camera and asks Moondream-2. "
-                      "Stop Vision / Face tracking first if the camera is busy.")
+                      "Live camera preview on the right — click Ask / Caption to send "
+                      "the current frame to the vision model. If the LLM tab has loaded "
+                      "a multimodal model (Gemma 4 + mmproj), it's reused here — "
+                      "otherwise falls back to Moondream-2.")
 
         self._q = QLineEdit("What do you see?")
         self._ask = QPushButton("Ask")
         self._ask.clicked.connect(self._run)
         self._caption_btn = QPushButton("Caption scene")
         self._caption_btn.clicked.connect(self._caption)
+        self._preview_btn = QPushButton("Start preview")
+        self._preview_btn.setCheckable(True)
+        self._preview_btn.clicked.connect(self._toggle_preview)
         self._lat = MetricCard("Latency", "—", "s")
         s.ll.addWidget(QLabel("Question"))
         s.ll.addWidget(self._q)
         s.ll.addLayout(_btn_row(self._ask, self._caption_btn))
+        s.ll.addWidget(self._preview_btn)
         s.ll.addWidget(self._lat)
 
-        self._preview = _preview_label("No frame captured yet.", min_h=220)
+        self._preview = _preview_label(
+            "Click Start preview to see the camera,\n"
+            "or the current frame from Vision / Face tracking if one's running.",
+            min_h=220,
+        )
         self._result = QPlainTextEdit(); self._result.setReadOnly(True)
         self._result.setPlaceholderText("VLM output will appear here.")
         s.lr.addWidget(self._preview, 3)
@@ -1578,6 +1635,12 @@ class VLMTab(QWidget):
         self.frame_signal.connect(
             lambda f: self._preview.setPixmap(_bgr_to_pixmap(f, max_w=520))
         )
+
+        # Live preview timer — polls the shared pipeline at ~15 Hz and
+        # pushes whatever frame it has into the preview QLabel.
+        self._preview_timer = QTimer(self)
+        self._preview_timer.timeout.connect(self._tick_preview)
+
         s.finalize()
 
     def set_status(self, t: str) -> None:
@@ -1592,10 +1655,76 @@ class VLMTab(QWidget):
             self.cfg.abspath(self.cfg.vlm.mmproj_path),
             enabled=self.cfg.vlm.enabled,
             max_tokens=self.cfg.vlm.max_tokens,
+            n_gpu_layers=getattr(self.cfg.vlm, "n_gpu_layers", 0),
         )
         return self._vlm.available
 
+    # ── Live preview ────────────────────────────────────────────────
+    def _toggle_preview(self, on: bool) -> None:
+        """User clicked Start/Stop preview. If a shared pipeline is
+        already running (Vision / Face tracking tab), we just tap its
+        frames for free. Otherwise we acquire the shared camera here."""
+        if on:
+            if self._sv is None:
+                self._preview_btn.setChecked(False)
+                self.set_status("No shared vision context — can't preview.")
+                return
+            try:
+                # Acquire ref-counted; release on Stop.
+                self._sv.acquire()
+                self._preview_acquired = True
+            except Exception as exc:
+                self._preview_btn.setChecked(False)
+                self.set_status(f"Preview start failed: {exc}")
+                return
+            self._preview_btn.setText("Stop preview")
+            self.set_status("Previewing — click Ask / Caption to snapshot.")
+            self._preview_timer.start(66)   # ~15 Hz
+        else:
+            self._preview_timer.stop()
+            if self._preview_acquired and self._sv is not None:
+                try: self._sv.release()
+                except Exception: pass
+                self._preview_acquired = False
+            self._preview_btn.setText("Start preview")
+            self.set_status("Preview stopped.")
+
+    def _tick_preview(self) -> None:
+        """Pull the latest frame from the shared pipeline and show it.
+        Silent if the pipeline has nothing yet; it'll catch up within
+        a few ticks as soon as frames are flowing."""
+        if self._sv is None:
+            return
+        pipe = self._sv.pipe
+        if pipe is None:
+            return
+        try:
+            frame = pipe.get_state().frame
+        except Exception:
+            return
+        if frame is not None:
+            self._last_preview_frame = frame
+            self._preview.setPixmap(_bgr_to_pixmap(frame, max_w=520))
+
+    # ── Ask / Caption ───────────────────────────────────────────────
     def _grab_frame(self):
+        """Snapshot one BGR frame. Prefer the live-preview frame if we
+        have one (no extra camera open). Otherwise acquire the shared
+        pipeline briefly. Last-resort: open a standalone CSICamera."""
+        # 1. If we have a live preview frame, use it — it's seconds-fresh.
+        if self._last_preview_frame is not None:
+            return self._last_preview_frame.copy()
+
+        # 2. If the shared pipeline is running (another tab), peek a frame.
+        if self._sv is not None and self._sv.pipe is not None:
+            try:
+                f = self._sv.pipe.get_state().frame
+                if f is not None:
+                    return f.copy()
+            except Exception:
+                pass
+
+        # 3. Cold path: spin up the camera ourselves for one capture.
         from companion.vision.camera import CSICamera
         try:
             cam = CSICamera(
@@ -1633,20 +1762,50 @@ class VLMTab(QWidget):
         threading.Thread(target=self._bg, args=("__CAPTION__",), daemon=True).start()
 
     def _bg(self, q: str) -> None:
-        # Outer try — _ensure_vlm or _grab_frame can raise on first call
-        # (model loading, camera init); a crash here must still emit
+        # Outer try — _ensure_vlm / _grab_frame / shared LLM can raise on
+        # first call (model loading, camera init); a crash must still emit
         # done_signal or the Ask / Caption buttons stay disabled forever.
         try:
-            if not self._ensure_vlm():
-                self.done_signal.emit("[VLM unavailable — check model files]", 0.0)
-                return
             frame = self._grab_frame()
             if frame is None:
                 self.done_signal.emit(
-                    "[no frame from camera — is another tab holding it?]", 0.0,
+                    "[no frame from camera — try Start preview, or start Vision tab]",
+                    0.0,
                 )
                 return
             self.frame_signal.emit(frame)
+
+            # Prefer the shared multimodal LLM (e.g. Gemma 4 with mmproj)
+            # — saves loading a second VLM, and it's already warmed up
+            # from chat.
+            shared = (
+                self._shared_llm.llm
+                if self._shared_llm is not None else None
+            )
+            if shared is not None and getattr(shared, "is_multimodal", False):
+                question = ("Describe this scene in one sentence."
+                            if q == "__CAPTION__" else q)
+                t0 = time.time()
+                try:
+                    out = shared.caption(
+                        frame, question,
+                        max_tokens=self.cfg.vlm.max_tokens,
+                    )
+                except Exception as exc:
+                    out = f"[LLM vision failed: {exc!r}]"
+                self.done_signal.emit(
+                    out or "[no output]", time.time() - t0,
+                )
+                return
+
+            # Fall back to standalone Moondream.
+            if not self._ensure_vlm():
+                self.done_signal.emit(
+                    "[VLM unavailable — load a multimodal LLM, or check "
+                    "Moondream model files]",
+                    0.0,
+                )
+                return
             t0 = time.time()
             try:
                 out = self._vlm.caption(frame) if q == "__CAPTION__" else self._vlm.answer(frame, q)
@@ -1656,6 +1815,15 @@ class VLMTab(QWidget):
         except Exception as exc:
             log.exception("VLM worker crashed")
             self.done_signal.emit(f"[VLM crashed: {exc!r}]", 0.0)
+
+    def _stop(self) -> None:
+        """Called by DebugGUI.closeEvent — release the preview acquire."""
+        if self._preview_timer.isActive():
+            self._preview_timer.stop()
+        if self._preview_acquired and self._sv is not None:
+            try: self._sv.release()
+            except Exception: pass
+            self._preview_acquired = False
 
     def _on_done(self, text: str, latency: float) -> None:
         self._result.setPlainText(text)
@@ -2326,6 +2494,9 @@ class DebugGUI(QMainWindow):
         # Vision tab mirrors the detected emotion onto the Face display
         # renderer in real time — this is the handoff point.
         self.shared_renderer = SharedRenderer()
+        # LLMTab publishes the loaded engine here; VLMTab reads it to
+        # reuse a multimodal Gemma for image captioning.
+        self.shared_llm = SharedLLM()
 
         for label, klass in _TAB_ORDER:
             if klass is VisionTab:
@@ -2340,6 +2511,14 @@ class DebugGUI(QMainWindow):
                     shared_vision=self.shared_vision,
                     shared_head=self.shared_head,
                 )
+            elif klass is VLMTab:
+                widget = VLMTab(
+                    cfg,
+                    shared_vision=self.shared_vision,
+                    shared_llm=self.shared_llm,
+                )
+            elif klass is LLMTab:
+                widget = LLMTab(cfg, shared_llm=self.shared_llm)
             elif klass is AudioTab:
                 widget = AudioTab(cfg, shared_head=self.shared_head)
             elif klass is MotorControlTab:

@@ -26,12 +26,14 @@ hardware:
 
 # ── LLM ─────────────────────────────────────────────────────────────────────
 llm:
-  model: gemma-4-e2b                          # one-line switch: e2b (default) | e4b
+  model: llama-3.2-1b                         # 8GB Orin: 1B model leaves ~4 GB VRAM for Parakeet + camera
   model_paths:
+    llama-3.2-1b: models/Llama-3.2-1B-Instruct-Q4_K_M.gguf
     gemma-4-e2b: models/gemma-4-e2b-it-q4_k_m.gguf
     gemma-4-e4b: models/gemma-4-e4b-it-q4_k_m.gguf
+  mmproj_path: ""                             # leave empty until llama-cpp-python has Gemma3ChatHandler (see notes below)
   n_gpu_layers: -1                            # -1 = offload all layers to GPU
-  context_length: 2048
+  context_length: 1024                        # reduced for 8GB Orin — halves KV cache
   max_tokens: 120
   temperature: 0.7
   top_p: 0.9
@@ -39,25 +41,30 @@ llm:
   system_prompt: >
     You are a warm, curious AI companion. You see the user via camera and hear
     them via microphone. Keep replies to 1-3 short sentences. Finish every
-    sentence. Acknowledge the user's mood subtly, not overtly.
+    sentence. Your first sentence is under 8 words — no filler like "Well,"
+    or "So,". Acknowledge the user's mood subtly, not overtly. At the very
+    end of every reply, append exactly one tag: [affect: happy],
+    [affect: curious], [affect: confused], [affect: surprised],
+    [affect: affectionate], [affect: sad], or [affect: neutral]. The tag is
+    a silent cue for the robot's face — never speak it aloud.
 
 # ── Vision-Language Model (scene awareness + "what is this?" answers) ───────
 vlm:
-  enabled: true
+  enabled: false                              # disabled on 8GB Orin — scene captioning is a value-add, not needed for basic conversation
   model_path: models/moondream2-q4.gguf
   mmproj_path: models/moondream2-mmproj-f16.gguf
-  scene_watch_hz: 1.0                         # background scene caption cadence
+  scene_watch_hz: 0.5                         # background scene caption cadence (paused during active turns)
   max_tokens: 80
 
 # ── FunctionGemma (tool-call router, 270M sidecar) ──────────────────────────
 function_gemma:
-  enabled: true
+  enabled: false                              # disabled on 8GB Orin — tool router is optional; re-enable once memory headroom is proven
   model_path: models/function-gemma-270m-q4.gguf
   confidence_threshold: 0.55
 
 # ── Persistent memory (Mem0 + local Chroma) ─────────────────────────────────
 memory:
-  enabled: true
+  enabled: false                              # disabled on 8GB Orin — Mem0/Chroma not needed for basic conversation
   chroma_dir: data/chroma
   top_k: 3
   max_entries_per_speaker: 500
@@ -74,7 +81,7 @@ stt:
 
 # ── Text-to-Speech ──────────────────────────────────────────────────────────
 tts:
-  engine: kokoro                              # kokoro (natural) | piper (fast)
+  engine: piper                               # piper (fast, lightweight) | kokoro (natural, heavier) — piper for 8GB Orin
   voice: af_heart                             # Kokoro voices: af_heart, af_bella, af_sarah, af_nicole, af_sky
   speaking_rate: 1.1
   lang: en-us
@@ -84,14 +91,14 @@ tts:
 
 # ── Voice Activity Detection ────────────────────────────────────────────────
 vad:
-  threshold: 0.5
+  threshold: 0.35                             # lowered from 0.5 — ReSpeaker levels tend to sit lower; tune up if picking up noise
   silence_duration_ms: 500
-  min_speech_duration_ms: 250
+  min_speech_duration_ms: 250                 # was 400; loosened for bring-up so short phrases trigger turns
   speech_pad_ms: 30
 
 # ── Semantic End-of-Utterance (LiveKit EOU transformer) ─────────────────────
 eou:
-  enabled: true
+  enabled: false                              # disabled on 8GB Orin — VAD alone handles turn ends; re-enable once memory headroom is proven
   model_path: models/eou/livekit-eou-v0.4.1-intl.onnx
   extra_wait_ms: 600                          # if EOU says "not done", wait this long more
   confidence_threshold: 0.55
@@ -105,7 +112,7 @@ wake_word:
 
 # ── Speaker identification (TitaNet-L) ──────────────────────────────────────
 speaker_id:
-  enabled: true
+  enabled: false                              # optional — TitaNet not downloaded; re-enable after fetching the model
   model_path: models/speaker_id/titanet-l.onnx
   speakers_file: models/speakers.json
   match_threshold: 0.65                       # cosine similarity
@@ -117,6 +124,7 @@ audio:
   chunk_size: 512                             # 32 ms at 16 kHz (Silero-compatible)
   input_device_name: ReSpeaker
   output_device_name: ""
+  input_gain: 4.0                             # 8x clipped; 4x keeps peaks headroom while boosting speech above the Silero threshold
 
 # ── ReSpeaker mic array (DOA + LEDs) ────────────────────────────────────────
 respeaker:
@@ -129,9 +137,10 @@ respeaker:
 # ── Vision (camera + face + emotion) ────────────────────────────────────────
 vision:
   enabled: true
+  emotion_enabled: false                      # face tracking only for basic bring-up (re-enable after conversation is stable)
   sensor_id: 0
-  width: 1280
-  height: 720
+  width: 640                                  # 8GB Orin — 480p is plenty for face tracking; halves NVMM + CPU cost
+  height: 480
   fps: 30
   flip_method: 0                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
   use_csi: true
@@ -155,20 +164,31 @@ display:
 
 # ── Conversation behaviour ──────────────────────────────────────────────────
 conversation:
-  mode: ptt                                   # ptt | continuous | wake_word
+  mode: ptt                                   # continuous | ptt | wake_word — VAD disabled, spacebar hold drives turns
   max_history: 6                              # exchanges to keep in context
   verbosity: normal                           # brief | normal | detailed
   log_conversations: true
   log_directory: logs
   allow_interruption: true
+  idle_timeout_s: 12.0                        # soft idle after this much silence
+
+  # Continuous-mode engagement gates — a VAD speech-end only becomes a
+  # conversation turn if (a) a face is visible, (b) the voiced speech
+  # was long enough, and (c) DOA (if available) lines up with the face.
+  # Keeps the robot from replying to the TV across the room.
+  engagement:
+    require_face: false                       # disabled for basic bring-up — camera is flaky, re-enable once frames are coming in
+    face_lookback_ms: 2000
+    doa_face_concordance_deg: 20.0
+    min_speech_ms: 250                        # matches loosened VAD min_speech_duration_ms
 
 # ── Head tracking motors (two ST3215 in differential bevel gear) ────────────
 # Values under "Calibration outputs" are set by the calibration wizard:
 #   python -m companion.motor.cli calibrate           (with hardware)
 #   python -m companion.motor.cli calibrate --sim     (rehearse without motors)
 motor:
-  enabled: false                              # master toggle — main.py skips init if false
-  sim_only: true                              # force simulator bus even when enabled
+  enabled: true                               # master toggle — main.py skips init if false
+  sim_only: false                             # set true to force the SimulatedBus (no hardware)
   port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_5B14112846-if00
   baudrate: 1000000
   sync_write: true                            # GroupSyncWrite — coordinated L/R, avoids pan wobble
@@ -196,7 +216,7 @@ motor:
   max_acceleration: 50
   torque_limit: 800                           # 0-1000 (ST3215 register)
   max_temperature_c: 65.0                     # thermal cutoff — disables torque above this
-  home_on_startup: false
+  home_on_startup: true                       # center the head on boot so each run starts predictably
   poll_hz: 30.0                               # telemetry poll rate
 
   # Stall detection: if a motor can't reach its goal within the timeout, the
@@ -205,6 +225,15 @@ motor:
   stall_detect: true
   stall_position_error_ticks: 30              # ~2.6° motor, ~1.3° head (gear ratio 2)
   stall_timeout_s: 1.5
+
+# ── Cross-cutting runtime knobs ─────────────────────────────────────────────
+runtime:
+  vram_headroom_mb: 1500                      # readiness refuses loads that cross this floor
+  onnx_cuda_enabled: false                    # 8GB Orin: ONNX on CPU so Gemma keeps exclusive VRAM and arenas don't fragment it
+  turn_workers: 2                             # size of the ConversationManager turn executor
+  behavior_tick_hz: 20.0                      # BehaviorEngine motor + face-display cadence
+  health_tick_hz: 1.0                         # HealthMonitor watchdog cadence
+  telemetry_ring_size: 100                    # per-turn JSONL history kept in memory for p50/p95
 
 # ── Desktop GUI ─────────────────────────────────────────────────────────────
 gui:

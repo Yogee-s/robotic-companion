@@ -773,11 +773,13 @@ void drawQuickGrid() {
 }
 
 // ── Scene: more list ─────────────────────────────────────────────────────
+// Kept intentionally short. Privacy + Status tiles were removed because
+// they had no host-side handler — tapping them did nothing. Adding rows
+// here requires a matching `handle_ui_action` branch in manager.py (or
+// a tool registered under the action name).
 struct Row { const char* label; const char* action; };
 const Row MORE_ROWS[] = {
     {"Volume",    "volume"},
-    {"Privacy",   "privacy"},
-    {"Status",    "status"},
     {"Restart",   "restart"},
     {"< Back",    "back"},
 };

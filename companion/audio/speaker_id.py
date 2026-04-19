@@ -41,15 +41,9 @@ class SpeakerID:
             )
             return
         try:
-            import onnxruntime as ort  # type: ignore
+            from companion.core.onnx_runtime import make_session
 
-            providers = (
-                ["CUDAExecutionProvider", "CPUExecutionProvider"]
-                if "CUDAExecutionProvider" in ort.get_available_providers()
-                else ["CPUExecutionProvider"]
-            )
-            self._session = ort.InferenceSession(self.model_path, providers=providers)
-            log.info(f"TitaNet-L loaded ({providers[0]})")
+            self._session = make_session(self.model_path)
         except Exception as exc:
             log.warning(f"TitaNet load failed: {exc!r}")
 

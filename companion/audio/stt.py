@@ -211,25 +211,14 @@ class _ParakeetBackend:
     isn't registered. Implements Parakeet's RNN-T beam search."""
 
     def __init__(self, model_dir: str) -> None:
-        import onnxruntime as ort  # type: ignore
+        from companion.core.onnx_runtime import make_session
 
-        providers = ort.get_available_providers()
-        preferred = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if "CUDAExecutionProvider" in providers
-            else ["CPUExecutionProvider"]
-        )
-        so = ort.SessionOptions()
-        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self._encoder = ort.InferenceSession(
-            os.path.join(model_dir, "encoder.onnx"), so, providers=preferred
-        )
-        self._decoder = ort.InferenceSession(
-            os.path.join(model_dir, "decoder.onnx"), so, providers=preferred
-        )
-        self._joiner = ort.InferenceSession(
-            os.path.join(model_dir, "joiner.onnx"), so, providers=preferred
-        )
+        # force_gpu=True — Parakeet is the turn-latency bottleneck. Safe
+        # on 8 GB Orin once the LLM is a 1B-class model (~1 GB VRAM),
+        # which leaves enough unified memory for Parakeet + the camera.
+        self._encoder = make_session(os.path.join(model_dir, "encoder.onnx"), force_gpu=True)
+        self._decoder = make_session(os.path.join(model_dir, "decoder.onnx"), force_gpu=True)
+        self._joiner = make_session(os.path.join(model_dir, "joiner.onnx"), force_gpu=True)
         # tokens.txt format: each line is "<piece> <index>" (space-separated,
         # with the piece first). Build an index→piece table and find the
         # blank token by name — it isn't always at index 0 (sherpa-onnx
@@ -277,9 +266,9 @@ class _ParakeetBackend:
         # Durations are [0, 1, ..., num_durations-1] in NeMo's convention.
         self._durations = np.arange(self._num_durations, dtype=np.int32)
 
-        self._providers = preferred
+        self._providers = self._encoder.get_providers()
         log.info(
-            f"Parakeet providers: {self._encoder.get_providers()} · "
+            f"Parakeet providers: {self._providers} · "
             f"vocab={self._num_text} blank={self._blank_id} "
             f"durations={self._num_durations}"
         )

@@ -11,3 +11,15 @@ companion_env/
 *.mp3
 logs/
 .ipynb_checkpoints/
+
+# Layered config — local overrides and secrets never hit git.
+config.local.yaml
+config.secrets.yaml
+
+# Editor / tooling workspaces
+.claude/
+.vscode/
+.idea/
+
+# Firmware build artefacts
+firmware/**/.pio/

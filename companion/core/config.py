@@ -48,6 +48,11 @@ class LLMConfig:
     n_gpu_layers: int = -1
     context_length: int = 2048
     max_tokens: int = 120
+    # Optional vision projector GGUF. When set and the file exists, the
+    # model is loaded with a multimodal chat handler so the same LLM can
+    # also answer questions about images — one model serving both chat
+    # and VLM duties (saves the ~3 GB Moondream would otherwise eat).
+    mmproj_path: str = ""
     temperature: float = 0.7
     top_p: float = 0.9
     repeat_penalty: float = 1.1
@@ -65,6 +70,11 @@ class VLMConfig:
     mmproj_path: str = "models/moondream2-mmproj-f16.gguf"
     scene_watch_hz: float = 1.0
     max_tokens: int = 80
+    # Number of layers to offload to GPU. Jetson Orin Nano's 8 GB shared
+    # VRAM usually can't fit Gemma 4 + YOLO + HSEmotion + a fully-offloaded
+    # Moondream at the same time. 0 = CPU only (safe but slower).
+    # Set to -1 in config.yaml only if you have the headroom.
+    n_gpu_layers: int = 0
 
 
 @dataclass
@@ -143,6 +153,7 @@ class AudioConfig:
     chunk_size: int = 512
     input_device_name: str = "ReSpeaker"
     output_device_name: str = ""
+    input_gain: float = 1.0                    # software gain applied to mic input; ReSpeaker UAC1.0 has no ALSA volume
 
 
 @dataclass
@@ -159,6 +170,7 @@ class ReSpeakerConfig:
 @dataclass
 class VisionConfig:
     enabled: bool = True
+    emotion_enabled: bool = True               # false = face detection + tracking only (skip HSEmotion inference)
     sensor_id: int = 0
     width: int = 1280
     height: int = 720
@@ -186,13 +198,30 @@ class DisplayConfig:
 
 
 @dataclass
+class EngagementConfig:
+    """Face-gated engagement rules for continuous-mode listening.
+
+    A VAD speech-end only triggers a turn when:
+      * a face is (or was recently) visible, AND
+      * the voiced speech lasted at least `min_speech_ms`, AND
+      * the DOA angle (if reliable) lines up with the face direction.
+    """
+    require_face: bool = True
+    face_lookback_ms: int = 2000
+    doa_face_concordance_deg: float = 20.0
+    min_speech_ms: int = 400
+
+
+@dataclass
 class ConversationConfig:
-    mode: str = "ptt"                          # ptt | continuous | wake_word
+    mode: str = "continuous"                   # continuous | ptt | wake_word
     max_history: int = 6
     verbosity: str = "normal"                  # brief | normal | detailed
     log_conversations: bool = True
     log_directory: str = "logs"
     allow_interruption: bool = True
+    idle_timeout_s: float = 12.0               # soft-idle after this much silence
+    engagement: EngagementConfig = field(default_factory=EngagementConfig)
 
 
 @dataclass
@@ -243,6 +272,17 @@ class MotorConfig:
 
 
 @dataclass
+class RuntimeConfig:
+    """Cross-cutting runtime knobs (GPU, thread pools, tick rates)."""
+    vram_headroom_mb: int = 1500             # readiness refuses loads that cross this
+    onnx_cuda_enabled: bool = True           # force-disable to debug with CPU-only
+    turn_workers: int = 2                    # ThreadPoolExecutor size for turn work
+    behavior_tick_hz: float = 20.0
+    health_tick_hz: float = 1.0
+    telemetry_ring_size: int = 100
+
+
+@dataclass
 class GUIConfig:
     window_width: int = 1280
     window_height: int = 820
@@ -277,6 +317,7 @@ class AppConfig:
     conversation: ConversationConfig = field(default_factory=ConversationConfig)
     motor: MotorConfig = field(default_factory=MotorConfig)
     gui: GUIConfig = field(default_factory=GUIConfig)
+    runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
     project_root: str = ""
 
@@ -330,23 +371,88 @@ def _coerce(cls, data: Any):
     return cls(**kwargs)
 
 
+def _deep_merge(base: dict, overlay: dict) -> dict:
+    """Recursively merge `overlay` into `base`. Scalars from overlay win.
+
+    Used to stack `config.yaml` <- `config.local.yaml` <- env overrides
+    without losing nested defaults.
+    """
+    out = dict(base)
+    for key, val in overlay.items():
+        if isinstance(val, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge(out[key], val)
+        else:
+            out[key] = val
+    return out
+
+
+def _env_overrides(prefix: str = "COMPANION_") -> dict:
+    """Translate `COMPANION_<SECTION>_<KEY>=value` env vars into a nested dict.
+
+    Example: `COMPANION_LLM_MAX_TOKENS=200` becomes `{"llm": {"max_tokens": "200"}}`.
+    String values are coerced by the dataclass field type at `_coerce` time.
+    """
+    out: dict = {}
+    for k, v in os.environ.items():
+        if not k.startswith(prefix):
+            continue
+        parts = k[len(prefix):].lower().split("_")
+        if len(parts) < 2:
+            continue
+        section, *rest = parts
+        key = "_".join(rest)
+        out.setdefault(section, {})[key] = _auto_cast(v)
+    return out
+
+
+def _auto_cast(s: str):
+    low = s.lower()
+    if low in ("true", "yes", "on"):
+        return True
+    if low in ("false", "no", "off"):
+        return False
+    try:
+        if "." in s:
+            return float(s)
+        return int(s)
+    except ValueError:
+        return s
+
+
 def load_config(path: Optional[str] = None) -> AppConfig:
-    """Load config.yaml into AppConfig. Missing file → defaults."""
+    """Load layered config: `config.yaml` < `config.local.yaml` < env vars.
+
+    `config.local.yaml` (gitignored, optional) lets each device override
+    the checked-in defaults without touching `config.yaml` — useful when
+    dev vs production Jetsons have different camera indices or model
+    paths. Environment variables override everything and are handy for
+    one-off runs.
+    """
     if path is None:
         here = Path(__file__).resolve().parents[2]
         path = str(here / "config.yaml")
     project_root = str(Path(path).resolve().parent)
 
-    if not os.path.exists(path):
-        log.warning(f"Config not found at {path}; using defaults")
-        cfg = AppConfig()
-        cfg.project_root = project_root
-        return cfg
+    merged: dict = {}
+    if os.path.exists(path):
+        with open(path, "r") as fh:
+            merged = yaml.safe_load(fh) or {}
+        log.info("Config loaded from %s", path)
+    else:
+        log.warning("Config not found at %s; using defaults", path)
 
-    with open(path, "r") as fh:
-        raw = yaml.safe_load(fh) or {}
+    local_path = os.path.join(project_root, "config.local.yaml")
+    if os.path.exists(local_path):
+        with open(local_path, "r") as fh:
+            local = yaml.safe_load(fh) or {}
+        merged = _deep_merge(merged, local)
+        log.info("Layered config.local.yaml applied")
 
-    cfg = _coerce(AppConfig, raw)
+    env_overlay = _env_overrides()
+    if env_overlay:
+        merged = _deep_merge(merged, env_overlay)
+        log.info("Env overrides applied: keys=%s", list(env_overlay.keys()))
+
+    cfg = _coerce(AppConfig, merged)
     cfg.project_root = project_root
-    log.info(f"Config loaded from {path}")
     return cfg

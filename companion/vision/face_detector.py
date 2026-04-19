@@ -54,28 +54,15 @@ class FaceDetector:
                 f"Export it with `yolo export model=yolo26n-pose.pt format=onnx` "
                 f"or place the file at that path."
             )
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:
-            raise RuntimeError(
-                "onnxruntime is required; `pip install onnxruntime-gpu` "
-                "on Jetson for GPU inference."
-            ) from exc
+        from companion.core.onnx_runtime import make_session
 
-        providers = ort.get_available_providers()
-        want = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if "CUDAExecutionProvider" in providers
-            else ["CPUExecutionProvider"]
-        )
-        self._sess = ort.InferenceSession(model_path, providers=want)
+        self._sess = make_session(model_path)
         self._input_name = self._sess.get_inputs()[0].name
         self._input_size = int(input_size)
         self._score_th = float(score_threshold)
         self._kpt_vis_th = float(kpt_visibility_threshold)
         logger.info(
-            f"FaceDetector loaded {model_path} "
-            f"(providers={self._sess.get_providers()}, score ≥ {score_threshold})"
+            "FaceDetector ready (score ≥ %s)", score_threshold
         )
 
     # ── public API ───────────────────────────────────────────────────────

@@ -75,9 +75,14 @@ class EmotionPipeline:
             model_path=self.cfg.get("yolo_pose_model_path", "models/vision/yolo26n-pose.onnx"),
             score_threshold=self.cfg.get("face_score_threshold", 0.5),
         )
-        self.classifier = EmotionClassifier(
-            model_path=self.cfg.get("emotion_model_path", "models/vision/enet_b0_8_best_afew.onnx"),
-            prefer_gpu=True,
+        self.emotion_enabled = bool(self.cfg.get("emotion_enabled", True))
+        self.classifier = (
+            EmotionClassifier(
+                model_path=self.cfg.get("emotion_model_path", "models/vision/enet_b0_8_best_afew.onnx"),
+                prefer_gpu=True,
+            )
+            if self.emotion_enabled
+            else None
         )
         self.detect_every_n = max(1, int(self.cfg.get("detect_every_n_frames", 2)))
         self.smoothing = float(self.cfg.get("smoothing", 0.7))
@@ -190,25 +195,32 @@ class EmotionPipeline:
                 y1 = min(frame.shape[0], y + h + pad)
                 face_crop = frame[y0:y1, x0:x1]
                 if face_crop.size > 0:
-                    probs, label, conf = self.classifier.classify(face_crop)
-                    v, a = EmotionClassifier.valence_arousal(probs)
+                    if self.classifier is not None:
+                        probs, label, conf = self.classifier.classify(face_crop)
+                        v, a = EmotionClassifier.valence_arousal(probs)
 
-                    # EMA smoothing on valence/arousal + probs
-                    with self._lock:
-                        prev = self._state
-                    s = self.smoothing
-                    if prev.has_face:
-                        v = s * prev.valence + (1 - s) * v
-                        a = s * prev.arousal + (1 - s) * a
-                        probs = s * prev.probs + (1 - s) * probs
+                        # EMA smoothing on valence/arousal + probs
+                        with self._lock:
+                            prev = self._state
+                        s = self.smoothing
+                        if prev.has_face:
+                            v = s * prev.valence + (1 - s) * v
+                            a = s * prev.arousal + (1 - s) * a
+                            probs = s * prev.probs + (1 - s) * probs
 
-                    new_state.has_face = True
-                    new_state.label = label
-                    new_state.confidence = conf
-                    new_state.probs = probs.astype(np.float32)
-                    new_state.valence = float(v)
-                    new_state.arousal = float(a)
-                    new_state.bbox = (x, y, w, h)
+                        new_state.has_face = True
+                        new_state.label = label
+                        new_state.confidence = conf
+                        new_state.probs = probs.astype(np.float32)
+                        new_state.valence = float(v)
+                        new_state.arousal = float(a)
+                        new_state.bbox = (x, y, w, h)
+                    else:
+                        # emotion_enabled=false → face tracking only, neutral affect.
+                        new_state.has_face = True
+                        new_state.label = "Neutral"
+                        new_state.confidence = 0.0
+                        new_state.bbox = (x, y, w, h)
             else:
                 # No face this frame — fade last valence/arousal toward neutral
                 with self._lock:

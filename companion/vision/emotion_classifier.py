@@ -54,23 +54,9 @@ class EmotionClassifier:
                 f"HSEmotion model not found: {model_path}\n"
                 f"Run: python3 scripts/download_vision_models.py"
             )
-        # Local import so the rest of the module can be inspected w/o ORT installed.
-        import onnxruntime as ort
+        from companion.core.onnx_runtime import make_session
 
-        available = ort.get_available_providers()
-        if prefer_gpu and "CUDAExecutionProvider" in available:
-            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        else:
-            providers = ["CPUExecutionProvider"]
-            if prefer_gpu:
-                logger.warning(
-                    "CUDAExecutionProvider not available — falling back to CPU. "
-                    "Install onnxruntime-gpu for GPU acceleration."
-                )
-
-        sess_opts = ort.SessionOptions()
-        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self._session = ort.InferenceSession(model_path, sess_opts, providers=providers)
+        self._session = make_session(model_path, prefer_gpu=prefer_gpu)
         self._active_providers = self._session.get_providers()
 
         inp = self._session.get_inputs()[0]
