@@ -1,72 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 260" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 280" role="img" aria-labelledby="title">
   <title id="title">Inverse kinematics pipeline — head pose to motor ticks</title>
   <style>
-    .bg { fill: #1e1e2e; }
-    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
-    .ibox { fill: #45475a; stroke: #89b4fa; stroke-width: 2; rx: 8; ry: 8; }
-    .obox { fill: #45475a; stroke: #a6e3a1; stroke-width: 2; rx: 8; ry: 8; }
-    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
-    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; }
-    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
-    .line { stroke: #89b4fa; stroke-width: 2; fill: none; }
-    .arr { fill: #89b4fa; }
+    .bg    { fill: #ffffff; }
+    .box   { fill: #f2f3f7; stroke: #7a7d8a; stroke-width: 1.2; rx: 6; ry: 6; }
+    .ibox  { fill: #dbe6ff; stroke: #1e66f5; stroke-width: 1.8; rx: 6; ry: 6; }
+    .obox  { fill: #e6f4e8; stroke: #2f8f3c; stroke-width: 1.8; rx: 6; ry: 6; }
+    .tb    { fill: #1e1e2e; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13.5px; font-weight: 700; }
+    .sub   { fill: #4b4f5a; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; }
+    .title { fill: #1e1e2e; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
+    .line  { stroke: #4b4f5a; stroke-width: 1.4; fill: none; }
+    .arr   { fill: #4b4f5a; }
   </style>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
     </marker>
   </defs>
-  <rect class="bg" width="1100" height="260"/>
+  <rect class="bg" width="1100" height="280"/>
 
-  <text class="tb" x="550" y="28" text-anchor="middle">User pose (pan, tilt degrees) → motor ticks, left-to-right</text>
+  <text class="title" x="550" y="28" text-anchor="middle">Inverse kinematics pipeline — user pose to motor ticks</text>
 
   <!-- Input -->
-  <rect class="ibox" x="20" y="90" width="120" height="80"/>
-  <text class="tb" x="80" y="122" text-anchor="middle">pose</text>
-  <text class="sub" x="80" y="140" text-anchor="middle">pan, tilt</text>
-  <text class="sub" x="80" y="156" text-anchor="middle">degrees</text>
+  <rect class="ibox" x="20" y="100" width="120" height="80"/>
+  <text class="tb"  x="80" y="132" text-anchor="middle">pose</text>
+  <text class="sub" x="80" y="150" text-anchor="middle">pan · tilt</text>
+  <text class="sub" x="80" y="166" text-anchor="middle">degrees</text>
 
-  <!-- 1. Clamp -->
-  <rect class="box" x="175" y="90" width="140" height="80"/>
-  <text class="tb" x="245" y="118" text-anchor="middle">1. Clamp</text>
-  <text class="sub" x="245" y="138" text-anchor="middle">pan_limits_deg</text>
-  <text class="sub" x="245" y="154" text-anchor="middle">tilt_limits_deg</text>
+  <!-- Stage 1 -->
+  <rect class="box" x="175" y="100" width="140" height="80"/>
+  <text class="tb" x="245" y="128" text-anchor="middle">1 · Clamp</text>
+  <text class="sub" x="245" y="148" text-anchor="middle">pan_limits_deg</text>
+  <text class="sub" x="245" y="164" text-anchor="middle">tilt_limits_deg</text>
 
-  <!-- 2. Invert -->
-  <rect class="box" x="345" y="90" width="130" height="80"/>
-  <text class="tb" x="410" y="118" text-anchor="middle">2. Invert</text>
-  <text class="sub" x="410" y="138" text-anchor="middle">invert_pan</text>
-  <text class="sub" x="410" y="154" text-anchor="middle">invert_tilt</text>
+  <!-- Stage 2 -->
+  <rect class="box" x="345" y="100" width="130" height="80"/>
+  <text class="tb" x="410" y="128" text-anchor="middle">2 · Invert</text>
+  <text class="sub" x="410" y="148" text-anchor="middle">invert_pan</text>
+  <text class="sub" x="410" y="164" text-anchor="middle">invert_tilt</text>
 
-  <!-- 3. IK solve -->
-  <rect class="box" x="505" y="90" width="160" height="80"/>
-  <text class="tb" x="585" y="118" text-anchor="middle">3. Solve IK</text>
-  <text class="sub" x="585" y="138" text-anchor="middle">θ_L = G·(p+q)</text>
-  <text class="sub" x="585" y="154" text-anchor="middle">θ_R = G·(p−q)</text>
+  <!-- Stage 3 -->
+  <rect class="box" x="505" y="100" width="160" height="80"/>
+  <text class="tb" x="585" y="128" text-anchor="middle">3 · Solve IK</text>
+  <text class="sub" x="585" y="148" text-anchor="middle">θ_L = G·(p+q)</text>
+  <text class="sub" x="585" y="164" text-anchor="middle">θ_R = G·(p−q)</text>
 
-  <!-- 4. Sign -->
-  <rect class="box" x="695" y="90" width="130" height="80"/>
-  <text class="tb" x="760" y="118" text-anchor="middle">4. Sign</text>
-  <text class="sub" x="760" y="138" text-anchor="middle">left_direction</text>
-  <text class="sub" x="760" y="154" text-anchor="middle">right_direction</text>
+  <!-- Stage 4 -->
+  <rect class="box" x="695" y="100" width="130" height="80"/>
+  <text class="tb" x="760" y="128" text-anchor="middle">4 · Sign</text>
+  <text class="sub" x="760" y="148" text-anchor="middle">left_direction</text>
+  <text class="sub" x="760" y="164" text-anchor="middle">right_direction</text>
 
-  <!-- 5. Zero offset -->
-  <rect class="box" x="855" y="90" width="140" height="80"/>
-  <text class="tb" x="925" y="118" text-anchor="middle">5. Zero offset</text>
-  <text class="sub" x="925" y="138" text-anchor="middle">left_zero_tick</text>
-  <text class="sub" x="925" y="154" text-anchor="middle">right_zero_tick</text>
+  <!-- Stage 5 -->
+  <rect class="box" x="855" y="100" width="140" height="80"/>
+  <text class="tb" x="925" y="128" text-anchor="middle">5 · Zero offset</text>
+  <text class="sub" x="925" y="148" text-anchor="middle">left_zero_tick</text>
+  <text class="sub" x="925" y="164" text-anchor="middle">right_zero_tick</text>
 
   <!-- Output -->
-  <rect class="obox" x="20" y="200" width="1080" height="40"/>
-  <text class="tb" x="560" y="226" text-anchor="middle">Motor ticks (L, R) → sync-write to servos via GroupSyncWrite, shared GOAL_TIME</text>
+  <rect class="obox" x="20" y="220" width="1075" height="44"/>
+  <text class="tb" x="557" y="248" text-anchor="middle">Motor ticks (L, R) → GroupSyncWrite to both servos with shared GOAL_TIME</text>
 
   <!-- Arrows -->
-  <path class="line" d="M 140 130 L 175 130" marker-end="url(#a)"/>
-  <path class="line" d="M 315 130 L 345 130" marker-end="url(#a)"/>
-  <path class="line" d="M 475 130 L 505 130" marker-end="url(#a)"/>
-  <path class="line" d="M 665 130 L 695 130" marker-end="url(#a)"/>
-  <path class="line" d="M 825 130 L 855 130" marker-end="url(#a)"/>
-
-  <!-- Final arrow down to output -->
-  <path class="line" d="M 925 170 L 925 200" marker-end="url(#a)"/>
+  <path class="line" d="M 140 140 L 175 140" marker-end="url(#a)"/>
+  <path class="line" d="M 315 140 L 345 140" marker-end="url(#a)"/>
+  <path class="line" d="M 475 140 L 505 140" marker-end="url(#a)"/>
+  <path class="line" d="M 665 140 L 695 140" marker-end="url(#a)"/>
+  <path class="line" d="M 825 140 L 855 140" marker-end="url(#a)"/>
+  <path class="line" d="M 925 180 L 925 220" marker-end="url(#a)"/>
 </svg>

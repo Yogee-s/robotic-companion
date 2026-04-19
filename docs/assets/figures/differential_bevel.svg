@@ -1,97 +1,130 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title">
   <title id="title">Differential bevel gearbox — kinematic schematic</title>
   <style>
-    .bg { fill: #1e1e2e; }
-    .t   { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; }
-    .tb  { fill: #cdd6f4; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
-    .sub { fill: #a6adc8; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 12px; }
-    .lbl { fill: #f9e2af; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-    .fmt { fill: #a6e3a1; font-family: ui-monospace, Consolas, monospace; font-size: 14px; font-weight: 700; }
-    .box { fill: #313244; stroke: #45475a; stroke-width: 1.5; rx: 8; ry: 8; }
-    .servo { fill: #45475a; stroke: #89b4fa; stroke-width: 2; rx: 6; ry: 6; }
-    .pinion { fill: #f5c2e7; stroke: #cdd6f4; stroke-width: 1; }
-    .crown  { fill: #89b4fa; stroke: #cdd6f4; stroke-width: 1.5; }
-    .head   { fill: #313244; stroke: #a6e3a1; stroke-width: 2.5; rx: 6; ry: 6; }
-    .axis   { stroke: #f9e2af; stroke-width: 1.2; stroke-dasharray: 4 4; }
-    .arr    { fill: #f9e2af; }
-    .arrline { stroke: #f9e2af; stroke-width: 2; fill: none; }
-    .outline { stroke: #a6e3a1; stroke-width: 2; fill: none; }
+    .bg    { fill: #ffffff; }
+    .title { fill: #1e1e2e; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 16px; font-weight: 700; }
+    .sub   { fill: #4b4f5a; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13px; }
+    .tb    { fill: #1e1e2e; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 14px; font-weight: 700; }
+    .t     { fill: #1e1e2e; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13px; }
+    .smallt{ fill: #4b4f5a; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; }
+    .mono  { fill: #1e1e2e; font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+    .monoh { fill: #0c4b9a; font-family: ui-monospace, Consolas, monospace; font-size: 14px; font-weight: 700; }
+    .motlbl{ fill: #b3741a; font-family: ui-monospace, Consolas, monospace; font-size: 13px; font-weight: 700; }
+
+    .motor  { fill: #f2f3f7; stroke: #4b4f5a; stroke-width: 1.5; rx: 6; ry: 6; }
+    .pinion { fill: #ffe5f1; stroke: #a63d8a; stroke-width: 1.6; }
+    .teeth  { fill: #a63d8a; }
+    .crown  { fill: #dbe6ff; stroke: #1e66f5; stroke-width: 1.8; }
+    .head   { fill: #e6f4e8; stroke: #2f8f3c; stroke-width: 2; rx: 8; ry: 8; }
+    .shaft  { fill: #c2c5cd; stroke: #7a7d8a; stroke-width: 0.8; }
+    .mount  { fill: #f6f7fb; stroke: #d6d8df; stroke-width: 1; rx: 6; ry: 6; }
+    .eqbox  { fill: #fafafc; stroke: #d6d8df; stroke-width: 1; rx: 6; ry: 6; }
+
+    .panarr   { stroke: #1e66f5; stroke-width: 2.2; fill: none; }
+    .tiltarr  { stroke: #2f8f3c; stroke-width: 2.2; fill: none; }
+    .rotarr   { stroke: #b3741a; stroke-width: 2; fill: none; }
+
+    .labelt { fill: #2f8f3c; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 700; }
+    .labelp { fill: #1e66f5; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 700; }
   </style>
   <defs>
-    <marker id="yarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" class="arr"/>
+    <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e66f5"/>
     </marker>
-    <marker id="garr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a6e3a1"/>
+    <marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f8f3c"/>
+    </marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b3741a"/>
     </marker>
   </defs>
-  <rect class="bg" width="900" height="540"/>
+  <rect class="bg" width="1000" height="560"/>
 
-  <text class="tb" x="450" y="30" text-anchor="middle">Differential bevel head — front view</text>
-  <text class="sub" x="450" y="48" text-anchor="middle">two ST3215 servos driving one 40-tooth crown through two 20-tooth pinions</text>
+  <!-- Title -->
+  <text class="title" x="500" y="30" text-anchor="middle">Differential bevel head</text>
+  <text class="sub"   x="500" y="50" text-anchor="middle">two ST3215 servos · two 20-tooth pinions · one 40-tooth crown gear · G = 40/20 = 2</text>
 
-  <!-- Left servo box -->
-  <rect class="servo" x="60" y="220" width="120" height="90"/>
-  <text class="tb" x="120" y="256" text-anchor="middle">ST3215 L</text>
-  <text class="sub" x="120" y="274" text-anchor="middle">id 1</text>
-  <text class="lbl" x="120" y="298" text-anchor="middle">θ_L</text>
+  <!-- ═══════ HEAD + PAN / TILT ARROWS ═══════ -->
+  <!-- Head box, centred -->
+  <rect class="head" x="420" y="90" width="160" height="60"/>
+  <text class="tb" x="500" y="118" text-anchor="middle">Head</text>
+  <text class="smallt" x="500" y="136" text-anchor="middle">TFT face + camera</text>
 
-  <!-- Right servo box -->
-  <rect class="servo" x="720" y="220" width="120" height="90"/>
-  <text class="tb" x="780" y="256" text-anchor="middle">ST3215 R</text>
-  <text class="sub" x="780" y="274" text-anchor="middle">id 2</text>
-  <text class="lbl" x="780" y="298" text-anchor="middle">θ_R</text>
+  <!-- Tilt arrow going up from head (green) -->
+  <path class="tiltarr" d="M 500 90 L 500 68" marker-end="url(#at)"/>
+  <text class="labelt" x="510" y="74">tilt</text>
 
-  <!-- Left pinion (20 teeth) -->
-  <circle class="pinion" cx="260" cy="265" r="42"/>
-  <text class="sub" x="260" y="269" text-anchor="middle">20 T</text>
+  <!-- Pan arrows left and right of head (blue) -->
+  <path class="panarr" d="M 420 120 L 385 120" marker-end="url(#ap)"/>
+  <text class="labelp" x="380" y="116" text-anchor="end">pan −</text>
+  <path class="panarr" d="M 580 120 L 615 120" marker-end="url(#ap)"/>
+  <text class="labelp" x="620" y="116">pan +</text>
+
+  <!-- Stem from head to crown -->
+  <rect class="shaft" x="492" y="150" width="16" height="40"/>
+
+  <!-- ═══════ GEARBOX ROW (y ~= 240) ═══════ -->
+  <!-- Crown gear (centre), underneath head stem -->
+  <ellipse class="crown" cx="500" cy="250" rx="120" ry="36"/>
+  <text class="tb" x="500" y="246" text-anchor="middle">Crown gear · 40 T</text>
+  <text class="smallt" x="500" y="264" text-anchor="middle">carries head</text>
+
+  <!-- Left pinion -->
+  <circle class="pinion" cx="310" cy="250" r="36"/>
+  <text class="t" x="310" y="254" text-anchor="middle" style="font-weight:700">20 T</text>
 
   <!-- Right pinion -->
-  <circle class="pinion" cx="640" cy="265" r="42"/>
-  <text class="sub" x="640" y="269" text-anchor="middle">20 T</text>
+  <circle class="pinion" cx="690" cy="250" r="36"/>
+  <text class="t" x="690" y="254" text-anchor="middle" style="font-weight:700">20 T</text>
 
-  <!-- Crown gear (40 teeth) -->
-  <ellipse class="crown" cx="450" cy="265" rx="130" ry="38"/>
-  <text class="tb" x="450" y="262" text-anchor="middle">Crown gear — 40 T</text>
-  <text class="sub" x="450" y="282" text-anchor="middle">carries head</text>
+  <!-- Left shaft between motor and pinion -->
+  <rect class="shaft" x="210" y="244" width="64" height="12"/>
+  <!-- Right shaft -->
+  <rect class="shaft" x="726" y="244" width="64" height="12"/>
 
-  <!-- Shafts from servos to pinions -->
-  <rect x="180" y="260" width="40" height="10" fill="#6c7086"/>
-  <rect x="680" y="260" width="40" height="10" fill="#6c7086"/>
+  <!-- Left motor: name + id + theta label all inside the box, clean -->
+  <rect class="motor" x="70" y="210" width="150" height="84"/>
+  <text class="tb"    x="145" y="236" text-anchor="middle">ST3215 L</text>
+  <text class="smallt" x="145" y="254" text-anchor="middle">servo · id 1</text>
+  <text class="motlbl" x="145" y="282" text-anchor="middle">shaft angle  θ_L</text>
 
-  <!-- Head (above crown) -->
-  <rect class="head" x="370" y="100" width="160" height="110"/>
-  <text class="tb" x="450" y="140" text-anchor="middle">Head</text>
-  <text class="sub" x="450" y="160" text-anchor="middle">TFT face · camera</text>
-  <text class="sub" x="450" y="178" text-anchor="middle">2-DOF: pan + tilt</text>
+  <!-- Right motor -->
+  <rect class="motor" x="780" y="210" width="150" height="84"/>
+  <text class="tb"    x="855" y="236" text-anchor="middle">ST3215 R</text>
+  <text class="smallt" x="855" y="254" text-anchor="middle">servo · id 2</text>
+  <text class="motlbl" x="855" y="282" text-anchor="middle">shaft angle  θ_R</text>
 
-  <!-- Tilt arrow from head centre going up -->
-  <path class="arrline" d="M 450 100 L 450 70" marker-end="url(#yarr)"/>
-  <text class="lbl" x="458" y="78">tilt</text>
+  <!-- ═══════ MOUNT ═══════ -->
+  <rect class="mount" x="300" y="310" width="400" height="26"/>
+  <text class="smallt" x="500" y="327" text-anchor="middle">3D-printed PLA mount · rigid base</text>
 
-  <!-- Pan (left/right) from head -->
-  <path class="arrline" d="M 370 155 L 330 155" marker-end="url(#yarr)"/>
-  <path class="arrline" d="M 530 155 L 570 155" marker-end="url(#yarr)"/>
-  <text class="lbl" x="320" y="148" text-anchor="end">pan (−)</text>
-  <text class="lbl" x="580" y="148">pan (+)</text>
+  <!-- ═══════ DIRECTION NOTES ═══════ -->
+  <g transform="translate(80, 358)">
+    <rect class="eqbox" width="380" height="60"/>
+    <text class="tb" x="16" y="22">Tilt (pitch)</text>
+    <text class="smallt" x="16" y="42">both motors rotate the <tspan font-weight="700" fill="#1e1e2e">same</tspan> direction</text>
+    <text class="smallt" x="16" y="56" style="fill:#2f8f3c;font-weight:700">θ_L and θ_R same sign  →  head pitches</text>
+  </g>
+  <g transform="translate(540, 358)">
+    <rect class="eqbox" width="380" height="60"/>
+    <text class="tb" x="16" y="22">Pan (yaw)</text>
+    <text class="smallt" x="16" y="42">motors rotate in <tspan font-weight="700" fill="#1e1e2e">opposite</tspan> directions</text>
+    <text class="smallt" x="16" y="56" style="fill:#1e66f5;font-weight:700">θ_L and θ_R opposite signs  →  head yaws</text>
+  </g>
 
-  <!-- Motor rotation arrows (arcs) -->
-  <!-- Left motor θ_L: arc on pinion -->
-  <path class="arrline" d="M 240 230 A 20 20 0 0 1 280 230" marker-end="url(#yarr)"/>
-  <text class="lbl" x="298" y="235">θ_L</text>
+  <!-- ═══════ EQUATIONS BOX ═══════ -->
+  <rect class="eqbox" x="80" y="440" width="840" height="100"/>
+  <text class="monoh" x="100" y="468">Forward  (motor → head)</text>
+  <text class="mono"  x="100" y="494">pitch = (θ_L + θ_R) / (2·G)</text>
+  <text class="mono"  x="100" y="516">pan   = (θ_L − θ_R) / (2·G)</text>
 
-  <!-- Right motor θ_R: arc on pinion -->
-  <path class="arrline" d="M 620 230 A 20 20 0 0 1 660 230" marker-end="url(#yarr)"/>
-  <text class="lbl" x="598" y="235" text-anchor="end">θ_R</text>
+  <text class="monoh" x="540" y="468">Inverse  (head → motor)</text>
+  <text class="mono"  x="540" y="494">θ_L = G · (pitch + pan)</text>
+  <text class="mono"  x="540" y="516">θ_R = G · (pitch − pan)</text>
 
-  <!-- Base -->
-  <rect class="box" x="200" y="330" width="500" height="40"/>
-  <text class="sub" x="450" y="355" text-anchor="middle">3D-printed PLA mount · rigid base</text>
+  <!-- Divider inside equation box -->
+  <line x1="500" y1="455" x2="500" y2="525" stroke="#d6d8df" stroke-width="1"/>
 
-  <!-- Equations box -->
-  <rect class="box" x="60" y="400" width="780" height="120"/>
-  <text class="tb"  x="80" y="428">Differential kinematics (G = crown ÷ pinion = 40 ÷ 20 = 2)</text>
-  <text class="fmt" x="80" y="458">Forward:  pitch = (θ_L + θ_R) / (2·G)        pan   = (θ_L − θ_R) / (2·G)</text>
-  <text class="fmt" x="80" y="484">Inverse:  θ_L   =  G · (pitch + pan)          θ_R   =  G · (pitch − pan)</text>
-  <text class="sub" x="80" y="506">Tilt: motors same direction.  Pan: motors opposite directions.  Ticks/rev = 4096 (ST3215).</text>
+  <!-- Bottom note -->
+  <text class="smallt" x="500" y="552" text-anchor="middle" style="font-style:italic">Encoder: 4096 ticks per revolution (single-turn absolute on the ST3215).</text>
 </svg>

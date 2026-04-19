@@ -1,139 +1,156 @@
-/* Print-specific CSS — hide TOC, force chapter page breaks, lighten background */
+/* Print-specific CSS — hide TOC, page breaks, keep colours on. */
 
 @media print {
   @page {
     size: A4;
     margin: 18mm 18mm 22mm 18mm;
     @bottom-center {
-      content: "URex — Expressive Multimodal AI Companion   |   github.com/Yogee-s/robotic-companion   |   Page " counter(page);
+      content: "Robot Companion   |   github.com/Yogee-s/robotic-companion   |   Page " counter(page);
       font-family: -apple-system, "Segoe UI", Arial, sans-serif;
       font-size: 9pt;
-      color: #6c7086;
+      color: #7a7d8a;
     }
   }
 
   html, body {
     background: #ffffff !important;
     color: #1e1e2e !important;
-    font-size: 10.5pt;
-    line-height: 1.45;
+    font-family: "Arial", "Helvetica Neue", sans-serif !important;
+    font-size: 11pt;
+    line-height: 1.5;
   }
+
+  /* Justified body text per UREx report guidelines */
+  main article p,
+  main article li { text-align: justify; }
+  main article p { margin: 0.6em 0; }
+
+  /* Figures: always centred, captions centred */
+  figure.figure, figure.cad { margin-left: auto !important; margin-right: auto !important; text-align: center; }
+  figure.figure figcaption, figure.cad figcaption { text-align: center !important; }
+  figure.figure img, figure.figure svg, figure.cad img { margin: 0 auto !important; }
+  .hero-strip figcaption { text-align: center !important; }
 
   aside.toc,
   .toc-toggle,
-  footer.site-footer {
-    display: none !important;
-  }
+  footer.site-footer { display: none !important; }
 
   .layout { display: block; }
-
-  main {
-    padding: 0 !important;
-    max-width: 100% !important;
-  }
-
+  main { padding: 0 !important; max-width: 100% !important; }
   main article { max-width: 100% !important; margin: 0; }
 
-  h1 { font-size: 22pt; color: #1e1e2e !important; }
-  h2 { font-size: 15pt; color: #1e66f5 !important; border-color: #d0d0d0 !important; page-break-after: avoid; }
-  h3 { font-size: 12pt; color: #1e66f5 !important; page-break-after: avoid; }
-  h4 { font-size: 10.5pt; color: #0c7b93 !important; page-break-after: avoid; }
+  h1 { font-size: 21pt; }
+  h2 { font-size: 15pt; page-break-after: avoid; }
+  h3 { font-size: 12pt; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; page-break-after: avoid; }
 
-  p, li, td, th, figcaption { color: #2a2a3a !important; }
-  strong { color: #1e1e2e !important; }
-  em { color: #b01060 !important; }
+  pre, code, table, .math { page-break-inside: avoid; }
+  figure.figure, figure.cad { page-break-inside: avoid; }
 
-  a { color: #1e66f5 !important; text-decoration: none; }
-
-  code {
-    background: #f0f0f4 !important;
-    color: #0c7b93 !important;
-    font-size: 9.5pt;
-  }
-
-  pre {
-    background: #f5f5f8 !important;
-    color: #1e1e2e !important;
-    border: 1px solid #d0d0d0 !important;
-    font-size: 9pt;
-    page-break-inside: avoid;
-  }
-
-  pre code { color: #1e1e2e !important; }
-
-  blockquote {
-    background: #f5f5f8 !important;
-    color: #3a3a4a !important;
-    border-left-color: #1e66f5 !important;
-  }
-
-  figure.figure, figure.cad {
-    background: #fafafc !important;
-    border-color: #d0d0d0 !important;
-    page-break-inside: avoid;
-  }
-
-  figure.figure img, figure.figure svg,
-  figure.cad img {
-    background: #ffffff !important;
-  }
-
-  figure.figure figcaption,
-  figure.cad figcaption {
-    color: #3a3a4a !important;
-    border-top-color: #d0d0d0 !important;
-  }
-
-  .figures-side-by-side figure.figure { page-break-inside: avoid; }
-
-  table {
-    background: #ffffff !important;
-    page-break-inside: avoid;
-  }
-
-  thead th {
-    background: #eeeef2 !important;
-    color: #1e66f5 !important;
-    border-bottom-color: #d0d0d0 !important;
-  }
-
-  tbody td { border-top-color: #e0e0e4 !important; color: #2a2a3a !important; }
-  tbody tr:hover { background: transparent !important; }
-
-  .math {
-    background: #f5f5f8 !important;
-    color: #1e1e2e !important;
-    border-left-color: #0c7b93 !important;
-    page-break-inside: avoid;
-  }
-
-  .abstract {
-    background: #f5f5f8 !important;
-    color: #2a2a3a !important;
-    border-left-color: #1e66f5 !important;
-    page-break-inside: avoid;
-  }
-
-  .abstract h2 { color: #1e66f5 !important; }
-  .abstract p { color: #2a2a3a !important; }
-
-  .title-block { border-bottom-color: #1e1e2e !important; }
-  .title-block .subtitle, .title-block .meta { color: #3a3a4a !important; }
-
-  /* Force chapter breaks */
-  section.chapter {
-    page-break-before: always;
-    margin-top: 0;
-  }
-
+  /* Force each numbered chapter to start on a new page */
+  section.chapter { page-break-before: always; margin-top: 0; }
   section.chapter:first-of-type { page-break-before: auto; }
 
-  /* Avoid orphans / widows on captions and headings */
-  figure.figure, figure.cad, .math, table, pre { page-break-inside: avoid; }
-  h1, h2, h3, h4 { page-break-after: avoid; }
+  /* Cover page: take the full first printed page, no footer */
+  .cover-page {
+    page-break-after: always;
+    min-height: 265mm;
+    justify-content: flex-start;
+    padding: 20mm 25mm 15mm !important;
+    text-align: center !important;
+    font-family: "Arial", "Helvetica Neue", sans-serif !important;
+  }
+  .cover-page .nus-logo { width: 90mm !important; margin-bottom: 14mm !important; }
+  .cover-page .cover-course { font-size: 10pt !important; letter-spacing: 3pt !important; margin-bottom: 4mm !important; }
+  .cover-page .cover-topic { font-size: 11pt !important; margin-bottom: 12mm !important; }
+  .cover-page h1.cover-title { font-size: 36pt !important; margin-bottom: 18mm !important; }
+  .cover-page .cover-identity { font-size: 12pt !important; }
+  .cover-page .cover-identity .ident-label { font-size: 13pt !important; }
+  .cover-page .cover-supervised { margin: 10mm auto 15mm !important; }
+  .cover-page .cover-supervised .supervised-label { font-size: 10pt !important; }
+  .cover-page .cover-supervised .supervised-name { font-size: 12pt !important; }
+  .cover-page .cover-supervised .supervised-email { font-size: 10pt !important; }
+  .cover-page .problem-box { background: #f5f5f8 !important; font-size: 10pt !important; }
+  .cover-page .problem-box .problem-stmt { font-size: 11pt !important; }
+  .cover-page .problem-box .problem-scope { font-size: 9.5pt !important; text-align: left !important; }
+  .cover-page .cover-department { color: #2a2a3a !important; border-top-color: #d0d0d0 !important; font-size: 10pt !important; margin-top: 15mm !important; }
+  .cover-page .cover-identity,
+  .cover-page .cover-supervised,
+  .cover-page .cover-department,
+  .cover-page .problem-box p { text-align: center !important; }
+  .cover-page .problem-box .problem-scope { text-align: left !important; }
+  .cover-page .cover-meta { font-size: 8.5pt !important; padding-top: 10mm !important; }
+  @page :first { @bottom-center { content: ""; } }
 
-  /* Status colours to something printable */
-  .status-integrated { color: #0c7b93 !important; }
-  .status-proven     { color: #c68117 !important; }
-  .status-deferred   { color: #6c7086 !important; }
+  /* Frontmatter (Acknowledgments, TOC) on their own pages, no justified text so links/numbers read cleanly */
+  section.frontmatter { page-break-before: always; page-break-after: always; margin-top: 0; }
+  section.frontmatter p, section.frontmatter li { text-align: left !important; }
+  section.frontmatter h2 { page-break-after: avoid; }
+
+  /* References chapter */
+  #references { page-break-before: always; }
+  .reference-list { font-size: 10pt !important; }
+  .reference-list > li { padding-left: 36pt !important; }
+  .reference-list > li::before { color: #1e66f5 !important; }
+  .reference-list .ref-link { color: #7a7d8a !important; }
+
+  /* Appendices can use slightly smaller font per guideline */
+  #appendix-a, #appendix-b, #appendix-c { font-size: 10pt; line-height: 1.4; }
+  #appendix-a table, #appendix-b table, #appendix-c table { font-size: 9.5pt; }
+
+  /* Preserve hierarchy — keep the page footer only from page 2 onward */
+  @page { margin: 25mm 22mm 22mm 22mm; }
+
+  /* Cap inline image heights so they never exceed one page */
+  figure.cad img            { max-height: 120mm !important; }
+  figure.cad.small img      { max-height: 85mm  !important; }
+  figure.cad.xsmall img     { max-height: 65mm  !important; }
+  figure.cad.large img      { max-height: 150mm !important; }
+  figure.cad.hero img       { max-height: 140mm !important; }
+  .figures-side-by-side figure.cad img { max-height: 85mm !important; }
+
+  figure.figure img,
+  figure.figure svg { max-height: 140mm !important; }
+
+  /* Avoid orphan headings / lines */
+  h1, h2, h3, h4 { page-break-after: avoid; }
+  figure + p, figure + h3, figure + h4 { page-break-before: avoid; }
+
+  /* Subtler table zebra for print */
+  tbody tr:nth-child(even) { background: #fafafc !important; }
+
+  .callout {
+    background: #f5f5f8 !important;
+    color: #1e1e2e !important;
+    border-color: #d0d0d4 !important;
+    page-break-inside: avoid;
+    position: relative;
+    margin-top: 28px !important;
+  }
+  .callout-label {
+    position: absolute !important;
+    top: -18px !important;
+    left: 0 !important;
+    color: #1e66f5 !important;
+    background: transparent !important;
+  }
+  .callout.note  .callout-label { color: #0c7b93 !important; }
+  .callout.warn  .callout-label { color: #b3741a !important; }
+
+  .photo-row figure.cad img { max-height: 55mm !important; }
+
+  .step-chain {
+    background: #f5f5f8 !important;
+    border-color: #d0d0d4 !important;
+    page-break-inside: avoid;
+  }
+  .step-chain .step {
+    background: #ffffff !important;
+    border-color: #d0d0d4 !important;
+    color: #0c4b9a !important;
+  }
+  .step-chain .step-arrow { color: #7a7d8a !important; }
+
+  /* Hide the mobile toggle for print */
+  .toc-toggle { display: none !important; }
 }

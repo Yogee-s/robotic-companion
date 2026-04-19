@@ -1,28 +1,33 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   URex report — Catppuccin Mocha
+   Robotic Companion report — light theme (report / PDF friendly)
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg:           #1e1e2e;
-  --bg-2:         #181825;
-  --surface:      #313244;
-  --surface-2:    #45475a;
-  --text:         #cdd6f4;
-  --text-dim:     #a6adc8;
-  --muted:        #6c7086;
-  --accent:       #89b4fa;
-  --accent-2:     #b4befe;
-  --success:      #a6e3a1;
-  --warn:         #f9e2af;
-  --err:          #f38ba8;
-  --pink:         #f5c2e7;
-  --teal:         #94e2d5;
+  --bg:           #ffffff;
+  --bg-2:         #f6f7fb;
+  --surface:      #f2f3f7;
+  --surface-2:    #e6e8ee;
+  --border:       #d6d8df;
+  --border-2:     #c2c5cd;
+
+  --text:         #1e1e2e;
+  --text-dim:     #4b4f5a;
+  --muted:        #7a7d8a;
+
+  --accent:       #1e66f5;
+  --accent-2:     #0c4b9a;
+  --success:      #2f8f3c;
+  --warn:         #b3741a;
+  --err:          #c53b5a;
+  --teal:         #0c7b93;
+  --pink:         #a63d8a;
 
   --max-width:    920px;
   --sidebar-w:    280px;
-  --radius:       8px;
-  --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --radius:       6px;
+
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -49,8 +54,8 @@ body {
 
 aside.toc {
   background: var(--bg-2);
-  border-right: 1px solid var(--surface-2);
-  padding: 24px 18px;
+  border-right: 1px solid var(--border);
+  padding: 22px 18px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -60,30 +65,26 @@ aside.toc {
 
 aside.toc .brand {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--accent);
   margin-bottom: 14px;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 aside.toc ol {
   list-style: none;
   padding: 0;
   margin: 0;
-  counter-reset: chap;
 }
 
-aside.toc li {
-  counter-increment: chap;
-  margin: 4px 0;
-}
+aside.toc li { margin: 3px 0; }
 
 aside.toc a {
   display: block;
   padding: 5px 10px;
   color: var(--text-dim);
   text-decoration: none;
-  border-radius: 5px;
+  border-radius: 4px;
   border-left: 3px solid transparent;
   transition: all 0.15s;
 }
@@ -97,11 +98,13 @@ aside.toc a.active {
   color: var(--accent);
   border-left-color: var(--accent);
   background: var(--surface);
+  font-weight: 600;
 }
 
 main {
   padding: 40px 48px 80px;
   max-width: calc(var(--max-width) + 96px);
+  background: var(--bg);
 }
 
 main article {
@@ -116,35 +119,41 @@ h1, h2, h3, h4 {
   font-weight: 700;
   line-height: 1.25;
   margin-top: 2em;
-  margin-bottom: 0.6em;
+  margin-bottom: 0.5em;
   letter-spacing: -0.2px;
 }
 
-h1 { font-size: 36px; margin-top: 0; }
-h2 { font-size: 26px; border-bottom: 1px solid var(--surface-2); padding-bottom: 8px; }
-h3 { font-size: 20px; color: var(--accent-2); }
-h4 { font-size: 17px; color: var(--teal); }
+h1 { font-size: 32px; margin-top: 0; }
+h2 {
+  font-size: 24px;
+  color: var(--accent-2);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+h3 { font-size: 18px; color: var(--accent-2); }
+h4 { font-size: 15px; color: var(--teal); }
 
-p { margin: 0.8em 0; }
+p { margin: 0.7em 0; }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 strong { color: var(--text); }
-em { color: var(--pink); font-style: normal; }
+em { color: var(--pink); font-style: italic; }
 
 code {
   font-family: var(--mono);
   font-size: 0.9em;
   background: var(--surface);
   color: var(--teal);
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
 }
 
 pre {
   background: var(--bg-2);
-  border: 1px solid var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 18px;
   overflow-x: auto;
@@ -155,6 +164,7 @@ pre {
 
 pre code {
   background: transparent;
+  border: none;
   color: var(--text);
   padding: 0;
 }
@@ -164,29 +174,337 @@ blockquote {
   padding: 10px 18px;
   border-left: 3px solid var(--accent);
   background: var(--surface);
-  border-radius: 4px;
   color: var(--text-dim);
+}
+
+/* ─── Cover page (academic report style, clean hierarchy) ─────────────── */
+
+.cover-page {
+  min-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 80px 40px 40px;
+  border-bottom: none;
+  margin: 0 0 40px;
+  font-family: -apple-system, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.cover-page .nus-logo {
+  width: 360px;
+  max-width: 75%;
+  height: auto;
+  margin: 0 auto 52px;
+  display: block;
+}
+
+/* UREx header line (small caps at the top) */
+.cover-page .cover-course {
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+/* Topic subtitle (between UREx header and main title) */
+.cover-page .cover-topic {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  margin-bottom: 34px;
+  font-style: italic;
+}
+
+/* Main title */
+.cover-page h1.cover-title {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 60px;
+  border: none;
+  padding: 0;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+/* Student identity */
+.cover-page .cover-identity {
+  margin: 0 auto 10px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.cover-page .cover-identity .ident-line {
+  display: block;
+  margin: 0;
+}
+
+.cover-page .cover-identity .ident-label {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 16px;
+  margin-right: 4px;
+}
+
+.cover-page .cover-identity .ident-value {
+  color: var(--text-dim);
+  font-weight: 400;
+  font-size: 15px;
+}
+
+/* Supervisor block */
+.cover-page .cover-supervised {
+  margin: 34px auto 48px;
+  line-height: 1.5;
+}
+
+.cover-page .cover-supervised .supervised-label {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.cover-page .cover-supervised .supervised-name {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cover-page .cover-supervised .supervised-email {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.cover-page .cover-supervised .supervised-email a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+/* Problem statement box */
+.cover-page .problem-box {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 22px 26px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  text-align: left;
+}
+
+.cover-page .problem-box .problem-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: var(--text-dim);
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.cover-page .problem-box .problem-stmt {
+  font-size: 14.5px;
+  color: var(--text);
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+
+.cover-page .problem-box .problem-scope {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* Department line near the bottom */
+.cover-page .cover-department {
+  margin-top: 48px;
+  padding-top: 22px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+  font-style: normal;
+}
+
+.cover-page .cover-department em {
+  font-style: normal;
+  color: var(--text);
+}
+
+/* Source repo line at the very bottom */
+.cover-page .cover-meta {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 11.5px;
+  color: var(--muted);
+  width: 100%;
+  max-width: 560px;
+  letter-spacing: 0.3px;
+}
+
+.cover-page .cover-meta a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--border-2); }
+
+/* Front matter sections (Acknowledgments, TOC) */
+section.frontmatter {
+  margin-top: 60px;
+  padding-top: 10px;
+  scroll-margin-top: 24px;
+}
+
+section.frontmatter h2 {
+  font-size: 24px;
+  color: var(--accent-2);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-top: 0;
+}
+
+section.frontmatter p { margin: 0.9em 0; }
+
+/* Printable Table of Contents */
+.toc-print {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  counter-reset: chap-counter;
+}
+
+.toc-print > li {
+  counter-increment: chap-counter;
+  margin: 6px 0;
+  font-size: 15px;
+  color: var(--text);
+  padding-left: 0;
+  position: relative;
+}
+
+.toc-print > li::before {
+  content: counter(chap-counter) ".";
+  display: inline-block;
+  min-width: 28px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.toc-print a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.toc-print a:hover { color: var(--accent); }
+
+.toc-print > li > ol {
+  list-style: none;
+  padding: 0 0 0 28px;
+  margin: 4px 0 8px;
+  counter-reset: sub-counter;
+}
+
+.toc-print > li > ol > li {
+  counter-increment: sub-counter;
+  margin: 2px 0;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.toc-print > li > ol > li::before {
+  content: counter(chap-counter) "." counter(sub-counter);
+  display: inline-block;
+  min-width: 36px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.toc-print > li > ol a {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.toc-appendix {
+  margin-top: 22px !important;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  counter-reset: none;
+}
+
+.toc-appendix > li::before {
+  content: "" !important;
+  min-width: 0 !important;
+}
+
+/* References list */
+.reference-list {
+  list-style: none;
+  padding-left: 0;
+  font-size: 14px;
+  counter-reset: ref-counter;
+}
+
+.reference-list > li {
+  counter-increment: ref-counter;
+  padding: 6px 0 6px 44px;
+  position: relative;
+  line-height: 1.55;
+  border-bottom: 1px dotted var(--border);
+}
+
+.reference-list > li:last-child { border-bottom: none; }
+
+.reference-list > li::before {
+  content: "[" counter(ref-counter) "]";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  color: var(--accent);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.reference-list .ref-link {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
 }
 
 /* ─── Title + hero ───────────────────────────────────────────────────── */
 
 .title-block {
-  margin-bottom: 40px;
-  padding-bottom: 30px;
-  border-bottom: 2px solid var(--surface-2);
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--border-2);
 }
 
-.title-block h1 { margin-bottom: 6px; }
+.title-block h1 {
+  margin-bottom: 6px;
+  color: var(--text);
+}
 
 .title-block .subtitle {
   color: var(--text-dim);
-  font-size: 17px;
-  margin-bottom: 14px;
+  font-size: 16px;
+  margin-bottom: 12px;
 }
 
 .title-block .meta {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13.5px;
   display: flex;
   gap: 20px;
   flex-wrap: wrap;
@@ -198,7 +516,7 @@ blockquote {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
-  margin: 28px 0 14px;
+  margin: 24px 0 12px;
 }
 
 .hero-strip figure {
@@ -206,22 +524,23 @@ blockquote {
   background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
-  border: 1px solid var(--surface-2);
+  border: 1px solid var(--border);
 }
 
 .hero-strip img {
   width: 100%;
   display: block;
+  max-height: 420px;
   object-fit: cover;
-  aspect-ratio: 3 / 4;
 }
 
 .hero-strip figcaption {
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 7px 14px;
+  font-size: 12.5px;
   color: var(--text-dim);
-  border-top: 1px solid var(--surface-2);
+  border-top: 1px solid var(--border);
   text-align: center;
+  background: var(--bg-2);
 }
 
 /* ─── Abstract ───────────────────────────────────────────────────────── */
@@ -229,15 +548,15 @@ blockquote {
 .abstract {
   background: var(--surface);
   border-left: 3px solid var(--accent);
-  padding: 20px 26px;
-  margin: 24px 0;
+  padding: 16px 22px;
+  margin: 22px 0;
   border-radius: var(--radius);
 }
 
 .abstract h2 {
   margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
+  margin-bottom: 8px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1.2px;
   color: var(--accent);
@@ -245,14 +564,17 @@ blockquote {
   padding: 0;
 }
 
-.abstract p { margin: 0.5em 0; font-size: 15px; color: var(--text-dim); }
+.abstract p {
+  margin: 0.4em 0;
+  font-size: 14.5px;
+  color: var(--text);
+}
 
-/* ─── Sections / chapters ────────────────────────────────────────────── */
+/* ─── Sections ───────────────────────────────────────────────────────── */
 
 section.chapter {
-  margin-top: 60px;
-  padding-top: 10px;
-  scroll-margin-top: 24px;
+  margin-top: 48px;
+  scroll-margin-top: 20px;
 }
 
 section.chapter > h2:first-child { margin-top: 0; }
@@ -260,11 +582,11 @@ section.chapter > h2:first-child { margin-top: 0; }
 /* ─── Figures ────────────────────────────────────────────────────────── */
 
 figure.figure {
-  margin: 28px 0;
-  background: var(--surface);
-  border: 1px solid var(--surface-2);
+  margin: 22px auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 14px;
 }
 
 figure.figure img,
@@ -273,41 +595,68 @@ figure.figure svg {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
-  background: var(--bg-2);
-  border-radius: 4px;
+  background: #ffffff;
+  border-radius: 3px;
 }
 
 figure.figure figcaption {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--surface-2);
+  margin: 10px auto 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
   color: var(--text-dim);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 760px;
 }
 
 figure.figure figcaption .figno {
   color: var(--accent);
   font-weight: 700;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .figures-side-by-side {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 16px;
 }
 
-.figures-side-by-side figure.figure { margin: 16px 0; }
+.figures-side-by-side figure.figure,
+.figures-side-by-side figure.cad {
+  margin: 12px 0;
+  width: auto;        /* fill grid cell rather than shrinking to image width */
+  max-width: 100%;
+}
 
-/* ─── Image-only captures (CAD, photos, screenshots) ─────────────────── */
+/* Slim figures: vertical diagrams that should display at a modest width
+   rather than stretching to the full content column. */
+figure.figure.slim img,
+figure.figure.slim svg {
+  max-width: 500px;
+  margin: 0 auto;
+  display: block;
+}
+
+figure.figure.slim-md img,
+figure.figure.slim-md svg {
+  max-width: 580px;
+  margin: 0 auto;
+  display: block;
+}
+
+/* ─── CAD / photo / screenshot figures ───────────────────────────────── */
+/* No outer box or padded background. The figure hugs the image, and the
+   caption sits below it with a thin top border as the only separator. */
 
 figure.cad {
-  margin: 24px 0;
-  background: var(--surface);
-  border: 1px solid var(--surface-2);
-  border-radius: var(--radius);
-  padding: 14px;
+  margin: 22px auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  text-align: center;
+  width: fit-content;
+  max-width: 100%;
 }
 
 figure.cad img {
@@ -315,57 +664,202 @@ figure.cad img {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
-  background: var(--bg-2);
-  border-radius: 4px;
+  background: #ffffff;
+  border-radius: 3px;
 }
 
 figure.cad figcaption {
-  margin-top: 10px;
-  padding: 8px 14px 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
   color: var(--text-dim);
-  font-size: 13.5px;
-  border-top: 1px solid var(--surface-2);
+  font-size: 12.5px;
+  text-align: center;
+  line-height: 1.45;
 }
 
-.prototype-grid figure.cad img { max-height: 420px; object-fit: contain; }
+figure.cad figcaption .figno {
+  color: var(--accent);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* --- Size classes for CAD images (controls image height, not figure) --- */
+figure.cad img                   { max-height: 360px; object-fit: contain; }
+figure.cad.small img             { max-height: 260px; }
+figure.cad.xsmall img            { max-height: 200px; }
+figure.cad.large img             { max-height: 480px; }
+
+/* Hero photos (assembled prototype) */
+figure.cad.hero img              { max-height: 420px; }
+
+/* Side-by-side shots get a tighter cap so both fit one row */
+.figures-side-by-side figure.cad img { max-height: 260px; }
+
+/* Prototype description paragraph — short, right under its figure */
+.proto-desc {
+  margin: 4px 0 22px;
+  color: var(--text-dim);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* ─── Brief block (label ABOVE, body below) ──────────────────────────── */
+
+.brief-block {
+  margin: 16px 0;
+}
+
+.brief-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+  letter-spacing: 0;
+}
+
+.brief-body {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* ─── Callout boxes (key takeaway / note / warn) ─────────────────────── */
+/* Matches the brief-block pattern: label sits ABOVE the box as a heading, */
+/* body is a clean grey box underneath. */
+
+.callout {
+  margin: 26px 0 18px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.55;
+  position: relative;
+}
+
+.callout > :first-child:not(.callout-label) { margin-top: 0; }
+.callout > :last-child  { margin-bottom: 0; }
+
+.callout-label {
+  display: block;
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.callout.note  .callout-label { color: var(--teal); }
+.callout.warn  .callout-label { color: var(--warn); }
+
+/* Step chain — horizontal pill-shaped chips connected by arrows */
+.step-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  margin: 22px 0;
+  padding: 18px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.step-chain .step {
+  background: #ffffff;
+  border: 1px solid var(--border-2);
+  border-radius: 22px;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent-2);
+  white-space: nowrap;
+}
+
+.step-chain .step-arrow {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+  user-select: none;
+}
+
+/* Horizontal row for side-by-side small photos (related-work etc.) */
+/* Flexbox keeps the row centred as a group, so two photos sit neatly in the middle */
+.photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 20px;
+  margin: 18px auto;
+}
+
+.photo-row figure.cad {
+  margin: 0;
+  flex: 0 1 280px;
+  text-align: center;
+}
+
+.photo-row figure.cad img {
+  max-height: 220px;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.photo-row figure.cad figcaption { text-align: center; }
 
 /* ─── Tables ─────────────────────────────────────────────────────────── */
 
 table {
   border-collapse: collapse;
   width: 100%;
-  margin: 18px 0;
+  margin: 16px 0;
   font-size: 14px;
-  background: var(--surface);
+  background: #ffffff;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
 thead th {
-  background: var(--bg-2);
-  color: var(--accent);
+  background: var(--surface);
+  color: var(--accent-2);
   text-align: left;
-  padding: 10px 14px;
+  padding: 9px 13px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12.5px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--surface-2);
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
 }
 
 tbody td {
-  padding: 9px 14px;
-  border-top: 1px solid var(--surface-2);
+  padding: 8px 13px;
+  border-top: 1px solid var(--border);
   vertical-align: top;
+  color: var(--text);
 }
 
-tbody tr:hover { background: var(--surface-2); }
+tbody tr:nth-child(even) { background: var(--bg-2); }
 
-td code { font-size: 12.5px; }
+td code { font-size: 12px; }
 
-.status-integrated { color: var(--success); font-weight: 600; }
-.status-proven     { color: var(--warn);    font-weight: 600; }
-.status-deferred   { color: var(--muted);   font-weight: 600; }
+.status-integrated { color: var(--success); font-weight: 600; white-space: nowrap; }
+.status-proven     { color: var(--warn);    font-weight: 600; white-space: nowrap; }
+.status-deferred   { color: var(--muted);   font-weight: 600; white-space: nowrap; }
 
 /* ─── Lists ──────────────────────────────────────────────────────────── */
 
@@ -377,34 +871,32 @@ li { margin: 0.3em 0; }
 .math {
   background: var(--bg-2);
   border-left: 3px solid var(--teal);
-  padding: 14px 20px;
-  margin: 14px 0;
+  padding: 12px 18px;
+  margin: 12px 0;
   border-radius: 4px;
   font-family: var(--mono);
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: 13.5px;
+  line-height: 1.75;
   color: var(--text);
   white-space: pre;
   overflow-x: auto;
 }
 
-/* ─── Page / section dividers ────────────────────────────────────────── */
+/* ─── Dividers / footer ──────────────────────────────────────────────── */
 
 hr {
   border: none;
   height: 1px;
-  background: var(--surface-2);
-  margin: 32px 0;
+  background: var(--border);
+  margin: 28px 0;
 }
 
-/* ─── Footer ─────────────────────────────────────────────────────────── */
-
 footer.site-footer {
-  margin-top: 80px;
-  padding: 24px 0 12px;
-  border-top: 1px solid var(--surface-2);
+  margin-top: 60px;
+  padding: 20px 0 10px;
+  border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
   text-align: center;
 }
 
@@ -419,19 +911,17 @@ footer.site-footer a { color: var(--accent); }
   left: 12px;
   z-index: 100;
   background: var(--accent);
-  color: var(--bg);
+  color: #ffffff;
   border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: 5px;
+  padding: 7px 11px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 @media (max-width: 960px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
+  .layout { grid-template-columns: 1fr; }
 
   aside.toc {
     position: fixed;
@@ -442,7 +932,7 @@ footer.site-footer a { color: var(--accent); }
     height: 100vh;
     transform: translateX(-100%);
     transition: transform 0.25s ease-out;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
   }
 
   aside.toc.open { transform: translateX(0); }
@@ -453,5 +943,4 @@ footer.site-footer a { color: var(--accent); }
 
   .hero-strip { grid-template-columns: 1fr; }
   .figures-side-by-side { grid-template-columns: 1fr; }
-  .prototype-grid { grid-template-columns: 1fr !important; }
 }
