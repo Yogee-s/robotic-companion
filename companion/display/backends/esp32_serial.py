@@ -104,11 +104,18 @@ class ESP32SerialRenderer:
                 time.sleep(period - elapsed)
 
     def _send_face(self, fs: FaceState) -> None:
+        # Include the expression hint so firmware that supports distinct
+        # ornaments (swirl eyes, lightbulb, hearts, ...) can render them.
+        # Firmware versions that don't parse `expr` just ignore the field.
+        # "none" is sent when no hint is set so the parser has a stable
+        # sentinel instead of an empty string.
+        expr = fs.expression or "none"
         line = (
             f"FACE v={fs.valence:+.2f} a={fs.arousal:+.2f} "
             f"talk={int(fs.talking)} listen={int(fs.listening)} "
             f"think={int(fs.thinking)} sleep={int(fs.sleep)} "
-            f"gaze={fs.gaze_x * 45:+.0f} privacy={int(fs.privacy)}\n"
+            f"gaze={fs.gaze_x * 45:+.0f} privacy={int(fs.privacy)} "
+            f"expr={expr}\n"
         )
         self._write(line)
 

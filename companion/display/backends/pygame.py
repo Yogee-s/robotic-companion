@@ -65,30 +65,104 @@ def _draw_spiral_eye(pygame_mod, surf, cx: int, cy: int, radius: int,
     pygame_mod.draw.circle(surf, colour, (cx, cy), 2)
 
 
-def _draw_dizzy_swirl(pygame_mod, surf, x: int, y: int, size: int = 28) -> None:
-    """Big hovering 'dizzy' swirl — the classic cartoon confusion symbol.
+def _draw_question_mark(pygame_mod, surf, x: int, y: int,
+                        sz: int = 22, col=(250, 230, 170)) -> None:
+    """Floating '?' glyph drawn from a hook arc + stem + dot. No font
+    dependency — just lines and arcs so it renders the same everywhere."""
+    # Hook of the '?'
+    rect = pygame_mod.Rect(x - sz // 2, y, sz, sz)
+    pygame_mod.draw.arc(surf, col, rect, math.radians(-30), math.pi, 3)
+    # Vertical stem down from the hook
+    pygame_mod.draw.line(surf, col,
+                         (x, y + sz - 4), (x, y + int(sz * 1.35)), 3)
+    # Dot below
+    pygame_mod.draw.circle(surf, col, (x, y + int(sz * 1.55)), 3)
 
-    Single line tracing an Archimedean spiral outward, thicker than the
-    eye spirals so it reads from across the room.
-    """
-    col = (250, 230, 170)          # warm yellow
-    shadow = (180, 160, 100)       # faint drop shadow for depth
-    turns = 2.4
-    steps = 54
-    pts = []
-    for i in range(steps + 1):
-        frac = i / steps
-        theta = frac * turns * 2 * math.pi
-        r = frac * size
-        pts.append((x + int(r * math.cos(theta)),
-                    y + int(r * math.sin(theta))))
-    # Shadow first, then the bright swirl on top
-    shadow_pts = [(px + 1, py + 1) for (px, py) in pts]
-    if len(pts) > 1:
-        pygame_mod.draw.lines(surf, shadow, False, shadow_pts, 4)
-        pygame_mod.draw.lines(surf, col, False, pts, 3)
-    # Small end-cap dot so the spiral has a clear 'start'
-    pygame_mod.draw.circle(surf, col, pts[-1], 3)
+
+def _draw_gear(pygame_mod, surf, cx: int, cy: int, r: int = 12) -> None:
+    """Small cog — the universal 'thinking / processing' icon."""
+    body = (200, 200, 220)
+    hole = (18, 18, 30)
+    pygame_mod.draw.circle(surf, body, (cx, cy), r, 2)
+    for i in range(8):
+        ang = i * math.pi / 4
+        ox = int((r + 3) * math.cos(ang))
+        oy = int((r + 3) * math.sin(ang))
+        pygame_mod.draw.circle(surf, body, (cx + ox, cy + oy), 2)
+    pygame_mod.draw.circle(surf, hole, (cx, cy), max(2, r // 3))
+
+
+def _draw_ellipsis(pygame_mod, surf, x: int, y: int,
+                   dot_sp: int = 9) -> None:
+    """Three horizontal dots '...' for the thinking face."""
+    col = (220, 220, 240)
+    for i in range(3):
+        pygame_mod.draw.circle(surf, col, (x + i * dot_sp, y), 2)
+
+
+def _draw_bulb(pygame_mod, surf, x: int, y: int, sz: int = 22) -> None:
+    """Classic lightbulb with rays — the 'idea!' icon."""
+    bulb = (250, 230, 90)
+    bulb_outline = (140, 110, 30)
+    ray_col = (235, 210, 90)
+    base_col = (150, 130, 70)
+    # Radiating rays
+    for i in range(8):
+        ang = i * math.pi / 4
+        ri = int(sz * 0.78)
+        ro = int(sz * 1.15)
+        pygame_mod.draw.line(
+            surf, ray_col,
+            (x + int(ri * math.cos(ang)), y + int(ri * math.sin(ang))),
+            (x + int(ro * math.cos(ang)), y + int(ro * math.sin(ang))),
+            2,
+        )
+    # Bulb body
+    r_body = int(sz * 0.55)
+    pygame_mod.draw.circle(surf, bulb, (x, y), r_body)
+    pygame_mod.draw.circle(surf, bulb_outline, (x, y), r_body, 1)
+    # Metal base + thread lines
+    base_y = y + int(r_body * 0.85)
+    pygame_mod.draw.rect(
+        surf, base_col,
+        pygame_mod.Rect(x - r_body // 2, base_y, r_body, 5),
+    )
+    for i in range(2):
+        yy = base_y + 2 + i * 2
+        pygame_mod.draw.line(surf, bulb_outline,
+                             (x - r_body // 2, yy),
+                             (x + r_body // 2, yy), 1)
+
+
+def _draw_heart(pygame_mod, surf, cx: int, cy: int,
+                size: int = 10, col=(240, 120, 160)) -> None:
+    """Small filled heart — two top circles + triangle bottom."""
+    r = max(2, size // 2)
+    pygame_mod.draw.circle(surf, col, (cx - r + 1, cy - r // 2), r)
+    pygame_mod.draw.circle(surf, col, (cx + r - 1, cy - r // 2), r)
+    pts = [
+        (cx - r - 1, cy - 1),
+        (cx + r + 1, cy - 1),
+        (cx, cy + size),
+    ]
+    pygame_mod.draw.polygon(surf, col, pts)
+
+
+def _draw_sound_arcs(pygame_mod, surf, cx: int, cy: int,
+                     n: int = 3, spacing: int = 8,
+                     facing: int = 1) -> None:
+    """Concentric quarter-arcs indicating inbound sound (listening icon).
+    `facing=+1` → arcs open to the right; `-1` → open to the left."""
+    col = (130, 200, 240)
+    # Quarter-arc angular span
+    if facing > 0:
+        a0, a1 = -math.pi / 4, math.pi / 4
+    else:
+        a0, a1 = math.pi * 3 / 4, math.pi * 5 / 4
+    for i in range(1, n + 1):
+        r = i * spacing
+        rect = pygame_mod.Rect(cx - r, cy - r, 2 * r, 2 * r)
+        pygame_mod.draw.arc(surf, col, rect, a0, a1, 2)
 
 
 def _draw_tear(pygame_mod, surf, x: int, y: int) -> None:
@@ -286,16 +360,15 @@ class PygameRenderer:
             _draw_zzz(pygame_mod, surf, cx + int(w * 0.22), int(cy - h * 0.20))
             return
 
-        # ── Dedicated confused face — spiral eyes + wavy mouth + dizzy swirl
+        # ── Dedicated confused face: swirly eyes + wavy mouth + ?? around head
         if fs.expression == "confused":
-            # Spiral swirl eyes (override normal eye drawing).
-            swirl_eye_rad = int(eye_rad * 1.4)
+            # Swirly eyes, prominently sized so the vortex is obvious
+            swirl_eye_rad = int(eye_rad * 1.5)
             for side in (-1, 1):
                 ex = cx + side * eye_dx
                 _draw_spiral_eye(pygame_mod, surf, ex, eye_y,
                                  swirl_eye_rad, width=2)
-            # Asymmetric brows — left up-slope, right down-slope (classic
-            # "one-eyebrow-raised" confused look).
+            # Asymmetric brows — classic "one raised, one lowered" look
             brow_y = eye_y - swirl_eye_rad - 8
             pygame_mod.draw.line(
                 surf, brow_col,
@@ -309,17 +382,230 @@ class PygameRenderer:
                 (cx + eye_dx + swirl_eye_rad, brow_y - 4),
                 3,
             )
-            # Zigzag mouth
+            # Zigzag mouth (wavering between smile and frown)
             mouth_y = int(cy + h * 0.14)
             _draw_wavy_mouth(pygame_mod, surf, cx, mouth_y, int(w * 0.20))
-            # Big dizzy swirl hovering above the head — the defining marker.
-            swirl_size = max(22, int(min(w, h) * 0.11))
-            _draw_dizzy_swirl(
-                pygame_mod, surf,
-                cx + int(w * 0.24),
-                int(cy - h * 0.28),
-                size=swirl_size,
+            # Three '?' marks floating around the head at varying sizes
+            # and warmth-shifted colours so they read as a constellation,
+            # not tiled wallpaper.
+            q_sz = max(16, int(min(w, h) * 0.08))
+            marks = (
+                # (x_offset, y_offset, scale, colour)
+                (-int(w * 0.30), -int(h * 0.28), 1.15, (250, 230, 170)),
+                (+int(w * 0.28), -int(h * 0.24), 1.00, (255, 210, 140)),
+                (+int(w * 0.36), +int(h * 0.02), 0.70, (220, 200, 150)),
             )
+            for dx, dy, scale, col in marks:
+                _draw_question_mark(
+                    pygame_mod, surf,
+                    cx + dx, cy + dy,
+                    sz=int(q_sz * scale),
+                    col=col,
+                )
+            return
+
+        # ── Thinking: pupils up-and-right + '...' + cog ─────────────
+        if fs.expression == "thinking":
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.circle(surf, eye_col, (ex, eye_y), eye_rad)
+                # Pupil shifted up-and-slightly-right (gaze into thought)
+                pup_dx = int(eye_rad * 0.35)
+                pup_dy = -int(eye_rad * 0.45)
+                pygame_mod.draw.circle(
+                    surf, pupil_col,
+                    (ex + pup_dx, eye_y + pup_dy),
+                    max(3, eye_rad // 2),
+                )
+            # One brow up (quizzical, asymmetric)
+            brow_y = eye_y - eye_rad - 10
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (cx - eye_dx - eye_rad, brow_y + 4),
+                (cx - eye_dx + eye_rad, brow_y - 2),
+                3,
+            )
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (cx + eye_dx - eye_rad, brow_y - 6),     # outer high
+                (cx + eye_dx + eye_rad, brow_y - 12),    # inner higher
+                3,
+            )
+            # Neutral closed mouth line
+            mouth_y = int(cy + h * 0.14)
+            mw = int(w * 0.16)
+            pygame_mod.draw.line(surf, mouth_col,
+                                 (cx - mw // 2, mouth_y),
+                                 (cx + mw // 2, mouth_y), 3)
+            # Ornaments: '...' over the head, and a gear to the upper-right
+            _draw_ellipsis(
+                pygame_mod, surf,
+                cx - int(w * 0.06), int(cy - h * 0.32),
+                dot_sp=max(8, int(min(w, h) * 0.035)),
+            )
+            _draw_gear(
+                pygame_mod, surf,
+                cx + int(w * 0.26), int(cy - h * 0.28),
+                r=max(10, int(min(w, h) * 0.05)),
+            )
+            return
+
+        # ── Idea: bright iris + tiny pupil + lightbulb + grin ────────
+        if fs.expression == "idea":
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                # Big white iris with tiny pupil — "aha!" wide-eyed look
+                pygame_mod.draw.circle(surf, eye_col, (ex, eye_y),
+                                       eye_rad + 1)
+                pygame_mod.draw.circle(surf, pupil_col, (ex, eye_y),
+                                       max(2, eye_rad // 3))
+                # Specular highlight
+                pygame_mod.draw.circle(
+                    surf, (255, 255, 255),
+                    (ex - eye_rad // 3, eye_y - eye_rad // 3),
+                    max(1, eye_rad // 4),
+                )
+            # Brows high and arched
+            brow_y = eye_y - eye_rad - 14
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.arc(
+                    surf, brow_col,
+                    pygame_mod.Rect(ex - eye_rad, brow_y - 3,
+                                    eye_rad * 2, 10),
+                    0, math.pi, 3,
+                )
+            # Big grin
+            mouth_y = int(cy + h * 0.14)
+            rect = pygame_mod.Rect(
+                cx - int(w * 0.14), mouth_y - 8,
+                int(w * 0.28), 24,
+            )
+            pygame_mod.draw.arc(surf, mouth_col, rect,
+                                math.pi, 2 * math.pi, 5)
+            # The lightbulb above the head — the defining icon
+            _draw_bulb(
+                pygame_mod, surf,
+                cx, int(cy - h * 0.32),
+                sz=max(22, int(min(w, h) * 0.14)),
+            )
+            return
+
+        # ── Love: heart eyes + floating hearts + soft smile ──────────
+        if fs.expression == "love":
+            heart_col = (240, 120, 160)
+            heart_size = int(eye_rad * 2.2)
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                _draw_heart(pygame_mod, surf, ex, eye_y,
+                            size=heart_size, col=heart_col)
+            # Gentle relaxed brows
+            brow_y = eye_y - eye_rad - 12
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, brow_y),
+                    (ex + eye_rad, brow_y),
+                    2,
+                )
+            # Soft smile
+            mouth_y = int(cy + h * 0.14)
+            rect = pygame_mod.Rect(
+                cx - int(w * 0.10), mouth_y - 4,
+                int(w * 0.20), 14,
+            )
+            pygame_mod.draw.arc(surf, mouth_col, rect,
+                                math.pi, 2 * math.pi, 3)
+            # Little hearts floating around the head at varied sizes
+            for dx, dy, scale in (
+                (-int(w * 0.28), -int(h * 0.28), 0.9),
+                (+int(w * 0.30), -int(h * 0.22), 1.1),
+                (+int(w * 0.22), +int(h * 0.02), 0.7),
+                (-int(w * 0.32), -int(h * 0.08), 0.6),
+            ):
+                _draw_heart(pygame_mod, surf,
+                            cx + dx, cy + dy,
+                            size=max(6, int(12 * scale)),
+                            col=heart_col)
+            return
+
+        # ── Wink: one eye closed, one gleaming, cocky smile ──────────
+        if fs.expression == "wink":
+            # Left eye closed (curved lid), right eye open with gleam.
+            # (Swap the signs if you prefer the opposite eye.)
+            left_x = cx - eye_dx
+            right_x = cx + eye_dx
+            # Closed left: smile-shaped arc
+            pygame_mod.draw.arc(
+                surf, eye_col,
+                pygame_mod.Rect(left_x - eye_rad, eye_y - eye_rad // 2,
+                                eye_rad * 2, eye_rad),
+                math.pi, 2 * math.pi, 3,
+            )
+            # Open right
+            pygame_mod.draw.circle(surf, eye_col, (right_x, eye_y), eye_rad)
+            pygame_mod.draw.circle(surf, pupil_col, (right_x, eye_y),
+                                   eye_rad // 2)
+            pygame_mod.draw.circle(
+                surf, (255, 255, 255),
+                (right_x - eye_rad // 3, eye_y - eye_rad // 3),
+                max(1, eye_rad // 4),
+            )
+            # Brows: neutral on closed side, slightly raised on open
+            brow_y = eye_y - eye_rad - 10
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (left_x - eye_rad, brow_y + 2),
+                (left_x + eye_rad, brow_y + 2), 3,
+            )
+            pygame_mod.draw.line(
+                surf, brow_col,
+                (right_x - eye_rad, brow_y - 4),
+                (right_x + eye_rad, brow_y), 3,
+            )
+            # Lopsided smirk: higher on the open-eye side
+            mouth_y = int(cy + h * 0.14)
+            pts = [
+                (cx - int(w * 0.12), mouth_y + 4),
+                (cx, mouth_y + 2),
+                (cx + int(w * 0.12), mouth_y - 4),
+            ]
+            pygame_mod.draw.lines(surf, mouth_col, False, pts, 3)
+            return
+
+        # ── Listening: normal eyes + inbound sound arcs ──────────────
+        if fs.expression == "listening":
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.circle(surf, eye_col, (ex, eye_y), eye_rad)
+                pygame_mod.draw.circle(surf, pupil_col, (ex, eye_y),
+                                       eye_rad // 2)
+            # Attentive flat brows, slightly raised
+            brow_y = eye_y - eye_rad - 10
+            for side in (-1, 1):
+                ex = cx + side * eye_dx
+                pygame_mod.draw.line(
+                    surf, brow_col,
+                    (ex - eye_rad, brow_y),
+                    (ex + eye_rad, brow_y),
+                    3,
+                )
+            # Small neutral-interested mouth: short flat line
+            mouth_y = int(cy + h * 0.14)
+            mw = int(w * 0.12)
+            pygame_mod.draw.line(surf, mouth_col,
+                                 (cx - mw // 2, mouth_y),
+                                 (cx + mw // 2, mouth_y), 3)
+            # Sound arcs on BOTH sides so it reads as "hearing from around"
+            _draw_sound_arcs(pygame_mod, surf,
+                             cx + int(w * 0.34), cy,
+                             n=3, spacing=max(6, int(min(w, h) * 0.035)),
+                             facing=+1)
+            _draw_sound_arcs(pygame_mod, surf,
+                             cx - int(w * 0.34), cy,
+                             n=3, spacing=max(6, int(min(w, h) * 0.035)),
+                             facing=-1)
             return
 
         # ── Base eyes ───────────────────────────────────────────────────

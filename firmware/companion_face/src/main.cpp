@@ -58,6 +58,11 @@ struct FaceState {
   bool  sleep    = false;
   bool  privacy  = false;
   float gaze_deg = 0.0f;
+  // Explicit expression hint from the Jetson. When set (and not "none"),
+  // it OVERRIDES the V/A-based expression pick, so we can render
+  // distinctive ornaments that can't be inferred from valence/arousal
+  // alone (swirl eyes for confused, lightbulb for idea, hearts for love).
+  String expression = "";
 };
 FaceState fs;
 
@@ -95,6 +100,7 @@ void parseFaceLine(const String& body) {
       else if (k == "sleep")    fs.sleep    = (v.toInt() != 0);
       else if (k == "gaze")     fs.gaze_deg = v.toFloat();
       else if (k == "privacy")  fs.privacy  = (v.toInt() != 0);
+      else if (k == "expr")     fs.expression = v;
     }
     if (sp < 0) break;
     idx = sp + 1;
@@ -132,8 +138,13 @@ void pumpSerial() {
 
 // ── Drawing: face (into the off-screen sprite fb) ───────────────────────
 // ── Expression helpers ─────────────────────────────────────────────────
-enum Expression { EX_NEUTRAL, EX_HAPPY, EX_EXCITED, EX_SURPRISED,
-                  EX_SAD, EX_ANGRY, EX_CALM };
+enum Expression {
+  // V/A-derived (legacy)
+  EX_NEUTRAL, EX_HAPPY, EX_EXCITED, EX_SURPRISED,
+  EX_SAD, EX_ANGRY, EX_CALM,
+  // Explicitly signalled via expr= (distinctive ornament branches)
+  EX_CONFUSED, EX_THINKING, EX_IDEA, EX_LOVE, EX_WINK, EX_LISTENING,
+};
 
 Expression pickExpression(float v, float a) {
   if (a > 0.55f && v > -0.2f && v < 0.3f)  return EX_SURPRISED;
@@ -143,6 +154,192 @@ Expression pickExpression(float v, float a) {
   if (v < -0.30f)                          return EX_SAD;
   if (a < -0.20f && v > -0.10f)            return EX_CALM;
   return EX_NEUTRAL;
+}
+
+// Map the `expr=` string from the Jetson → Expression enum. Returns
+// EX_NEUTRAL as a sentinel when the hint is empty / "none" — callers
+// fall back to the V/A-based pickExpression in that case.
+Expression expressionFromString(const String& s) {
+  if (s.length() == 0 || s == "none") return EX_NEUTRAL;
+  if (s == "confused")  return EX_CONFUSED;
+  if (s == "thinking")  return EX_THINKING;
+  if (s == "idea")      return EX_IDEA;
+  if (s == "love")      return EX_LOVE;
+  if (s == "wink")      return EX_WINK;
+  if (s == "listening") return EX_LISTENING;
+  if (s == "surprised") return EX_SURPRISED;
+  if (s == "excited")   return EX_EXCITED;
+  if (s == "sad")       return EX_SAD;
+  if (s == "angry")     return EX_ANGRY;
+  return EX_NEUTRAL;
+}
+
+// ── Ornament primitives (matching pygame backend visually) ─────────────
+
+// Swirly "vortex" eye — Archimedean spiral drawn as line segments.
+// `rot` is a radians offset applied to the spiral's start angle, so we
+// can rotate it over time for a subtle spinning animation.
+static void drawSpiralEye(int16_t cx, int16_t cy, int16_t r, float rot) {
+  fb.fillCircle(cx, cy, r + 2, CLR_BG);
+  const float TURNS = 2.1f;
+  const int   STEPS = 36;
+  int16_t px = cx, py = cy;
+  for (int i = 0; i <= STEPS; ++i) {
+    float f = (float)i / (float)STEPS;
+    float t = rot + f * TURNS * 2.0f * PI;
+    float rr = f * (float)r;
+    int16_t nx = cx + (int16_t)(rr * cosf(t));
+    int16_t ny = cy + (int16_t)(rr * sinf(t));
+    if (i > 0) {
+      fb.drawLine(px, py, nx, ny, CLR_EYE);
+      fb.drawLine(px, py + 1, nx, ny + 1, CLR_EYE);   // thicken
+    }
+    px = nx; py = ny;
+  }
+  fb.fillCircle(cx, cy, 2, CLR_EYE);
+}
+
+// Floating '?' glyph: hook arc + stem + dot.
+static void drawQuestionMark(int16_t x, int16_t y, int16_t sz,
+                             uint16_t col) {
+  // Hook drawn as a sequence of small lines along an arc.
+  int16_t hx = x;
+  int16_t hy = y + sz / 2;
+  int16_t r  = sz / 2;
+  int16_t prevX = hx + (int16_t)((float)r * cosf(-PI / 6));
+  int16_t prevY = hy + (int16_t)((float)r * sinf(-PI / 6));
+  for (int deg = -30; deg <= 180; deg += 15) {
+    float a = (float)deg * PI / 180.0f;
+    int16_t nx = hx + (int16_t)((float)r * cosf(a));
+    int16_t ny = hy + (int16_t)((float)r * sinf(a));
+    fb.drawLine(prevX, prevY, nx, ny, col);
+    fb.drawLine(prevX + 1, prevY, nx + 1, ny, col);
+    prevX = nx; prevY = ny;
+  }
+  // Stem below the hook
+  fb.drawLine(x, y + sz - 4, x, y + (int16_t)(sz * 1.35f), col);
+  fb.drawLine(x + 1, y + sz - 4, x + 1, y + (int16_t)(sz * 1.35f), col);
+  // Dot
+  fb.fillCircle(x, y + (int16_t)(sz * 1.55f), 3, col);
+}
+
+// Small cog / gear — thinking icon.
+static void drawGear(int16_t cx, int16_t cy, int16_t r) {
+  fb.drawCircle(cx, cy, r, CLR_BROW);
+  fb.drawCircle(cx, cy, r - 1, CLR_BROW);
+  for (int i = 0; i < 8; ++i) {
+    float ang = (float)i * PI / 4.0f;
+    int16_t ox = cx + (int16_t)((float)(r + 3) * cosf(ang));
+    int16_t oy = cy + (int16_t)((float)(r + 3) * sinf(ang));
+    fb.fillCircle(ox, oy, 2, CLR_BROW);
+  }
+  fb.fillCircle(cx, cy, max((int16_t)2, (int16_t)(r / 3)), CLR_BG);
+}
+
+// Three horizontal dots "...".
+static void drawEllipsis(int16_t x, int16_t y, int16_t spacing) {
+  for (int i = 0; i < 3; ++i) {
+    fb.fillCircle(x + i * spacing, y, 2, CLR_EYE);
+  }
+}
+
+// Lightbulb + radiating rays — idea icon.
+static void drawBulb(int16_t x, int16_t y, int16_t sz) {
+  const uint16_t BULB       = 0xFE40;  // warm yellow
+  const uint16_t BULB_LINE  = 0x8A00;  // dark amber outline
+  const uint16_t RAYS       = 0xE520;  // slightly dim yellow
+  const uint16_t BASE       = 0x9CE7;  // grey base
+  // Rays
+  for (int i = 0; i < 8; ++i) {
+    float ang = (float)i * PI / 4.0f;
+    int16_t ri = (int16_t)(sz * 0.78f);
+    int16_t ro = (int16_t)(sz * 1.15f);
+    int16_t x1 = x + (int16_t)((float)ri * cosf(ang));
+    int16_t y1 = y + (int16_t)((float)ri * sinf(ang));
+    int16_t x2 = x + (int16_t)((float)ro * cosf(ang));
+    int16_t y2 = y + (int16_t)((float)ro * sinf(ang));
+    fb.drawLine(x1, y1, x2, y2, RAYS);
+  }
+  int16_t rb = (int16_t)(sz * 0.55f);
+  fb.fillCircle(x, y, rb, BULB);
+  fb.drawCircle(x, y, rb, BULB_LINE);
+  // Base
+  int16_t baseY = y + (int16_t)(rb * 0.85f);
+  fb.fillRect(x - rb / 2, baseY, rb, 5, BASE);
+  fb.drawFastHLine(x - rb / 2, baseY + 2, rb, BULB_LINE);
+}
+
+// Compact lightbulb — just the bulb outline, no sun rays. Used for the
+// "idea" face where the bulb is placed near the head at a smaller scale.
+// `glow` ∈ [0,1] pulses the bulb colour brightness for a subtle animation.
+static void drawBulbCompact(int16_t x, int16_t y, int16_t sz, float glow) {
+  // Body colour lerps between dim and bright yellow based on glow.
+  // 0x8240 dim → 0xFE60 bright (RGB565)
+  uint16_t bulb;
+  {
+    uint8_t r = (uint8_t)(0x20 + (uint8_t)(glow * 0x1F));  // 5 bits
+    uint8_t g = (uint8_t)(0x10 + (uint8_t)(glow * 0x2F));  // 6 bits
+    uint8_t b = (uint8_t)(0x00 + (uint8_t)(glow * 0x06));  // 5 bits
+    bulb = (uint16_t)((r << 11) | (g << 5) | b);
+  }
+  const uint16_t outline = 0x8220;
+  const uint16_t base    = 0x9CE7;
+
+  int16_t rb = (int16_t)(sz * 0.55f);
+  fb.fillCircle(x, y, rb, bulb);
+  fb.drawCircle(x, y, rb, outline);
+  // Metal base
+  int16_t baseY = y + (int16_t)(rb * 0.85f);
+  fb.fillRect(x - rb / 2, baseY, rb, 4, base);
+  fb.drawFastHLine(x - rb / 2, baseY + 2, rb, outline);
+  // Small specular highlight at upper-left of the bulb
+  fb.fillCircle(x - rb / 3, y - rb / 3, max((int16_t)2, (int16_t)(rb / 4)),
+                0xFFFF);
+}
+
+// Small filled heart (two top circles + triangle).
+static void drawHeart(int16_t cx, int16_t cy, int16_t size, uint16_t col) {
+  int16_t r = max((int16_t)2, (int16_t)(size / 2));
+  fb.fillCircle(cx - r + 1, cy - r / 2, r, col);
+  fb.fillCircle(cx + r - 1, cy - r / 2, r, col);
+  fb.fillTriangle(cx - r - 1, cy - 1,
+                  cx + r + 1, cy - 1,
+                  cx,         cy + size, col);
+}
+
+// Three concentric sound-wave arcs — listening icon.
+// `facing`: +1 → arcs open to the right; -1 → open to the left.
+static void drawSoundArcs(int16_t cx, int16_t cy, int n,
+                          int16_t spacing, int facing) {
+  const uint16_t COL = 0x6CDF;  // light blue
+  const float HALF = PI / 4.0f;
+  const float CENTER = (facing > 0) ? 0.0f : PI;
+  for (int i = 1; i <= n; ++i) {
+    int16_t rr = i * spacing;
+    int16_t prevX = cx + (int16_t)((float)rr * cosf(CENTER - HALF));
+    int16_t prevY = cy + (int16_t)((float)rr * sinf(CENTER - HALF));
+    for (int step = 1; step <= 8; ++step) {
+      float a = CENTER - HALF + (2.0f * HALF) * (float)step / 8.0f;
+      int16_t nx = cx + (int16_t)((float)rr * cosf(a));
+      int16_t ny = cy + (int16_t)((float)rr * sinf(a));
+      fb.drawLine(prevX, prevY, nx, ny, COL);
+      fb.drawLine(prevX, prevY + 1, nx, ny + 1, COL);
+      prevX = nx; prevY = ny;
+    }
+  }
+}
+
+// Zigzag "confused" mouth — a short wavy line.
+static void drawWavyMouth(int16_t cx, int16_t cy, int16_t w) {
+  const int STEPS = 6;
+  int16_t prevX = cx - w / 2, prevY = cy - 4;
+  for (int i = 1; i <= STEPS; ++i) {
+    int16_t nx = cx - w / 2 + (int16_t)((float)w * (float)i / (float)STEPS);
+    int16_t ny = cy + ((i & 1) ? 4 : -4);
+    fb.drawLine(prevX, prevY, nx, ny, CLR_MOUTH);
+    fb.drawLine(prevX, prevY + 1, nx, ny + 1, CLR_MOUTH);
+    prevX = nx; prevY = ny;
+  }
 }
 
 // Pixel-plotted parabola from (cx-w/2, cy) → (cx+w/2, cy) peaking at
@@ -264,6 +461,180 @@ static void drawMouth(int16_t cx, int16_t cy, Expression ex,
   }
 }
 
+// Draws one of the "distinctive" ornament-based faces.
+// `now` is millis() at frame time — used for phase-based animations.
+// Returns true if it handled the expression; false → fall back to
+// the generic V/A renderer.
+static bool drawExplicitExpression(Expression ex,
+                                   int16_t cx, int16_t cy,
+                                   int16_t W, int16_t H,
+                                   unsigned long now) {
+  const int16_t eyeDX = 64;
+  const int16_t eyeY  = cy - 16;
+  const int16_t eyeR  = 26;
+
+  switch (ex) {
+    case EX_CONFUSED: {
+      // Swirly eyes slowly rotating for a dizzy feel. No question marks.
+      int16_t rr = (int16_t)(eyeR * 1.3f);
+      float rot = (float)(now % 4000) / 4000.0f * 2.0f * PI;   // 4 s / turn
+      drawSpiralEye(cx - eyeDX, eyeY, rr, rot);
+      drawSpiralEye(cx + eyeDX, eyeY, rr, -rot);               // counter-rotate
+      // Asymmetric brows (kept — they're free and reinforce the mood)
+      fb.drawLine(cx - eyeDX - rr, eyeY - rr - 10,
+                  cx - eyeDX + rr, eyeY - rr + 2, CLR_BROW);
+      fb.drawLine(cx - eyeDX - rr, eyeY - rr - 11,
+                  cx - eyeDX + rr, eyeY - rr + 1, CLR_BROW);
+      fb.drawLine(cx + eyeDX - rr, eyeY - rr - 2,
+                  cx + eyeDX + rr, eyeY - rr - 14, CLR_BROW);
+      fb.drawLine(cx + eyeDX - rr, eyeY - rr - 3,
+                  cx + eyeDX + rr, eyeY - rr - 15, CLR_BROW);
+      // Zigzag mouth
+      drawWavyMouth(cx, cy + 58, 60);
+      return true;
+    }
+    case EX_THINKING: {
+      // Eyes look up-and-right (pensive)
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t ex2 = cx + side * eyeDX;
+        fb.fillCircle(ex2, eyeY, eyeR, CLR_EYE);
+        fb.drawCircle(ex2, eyeY, eyeR, CLR_EYE_SHADE);
+        fb.fillCircle(ex2 + 8, eyeY - 10, (int16_t)(eyeR * 0.42f), CLR_PUPIL);
+      }
+      // Quizzical asymmetric brows
+      fb.drawLine(cx - eyeDX - eyeR, eyeY - eyeR - 8,
+                  cx - eyeDX + eyeR, eyeY - eyeR - 12, CLR_BROW);
+      fb.drawLine(cx + eyeDX - eyeR, eyeY - eyeR - 18,
+                  cx + eyeDX + eyeR, eyeY - eyeR - 8, CLR_BROW);
+      // Neutral closed-line mouth
+      fb.fillRoundRect(cx - 22, cy + 55, 44, 6, 3, CLR_MOUTH);
+      // Animated ellipsis: 1 → 2 → 3 → 0 dots on a 1.6 s cycle.
+      int dots = (int)((now / 400) % 4);   // 0..3
+      int16_t dotX = cx - 14;
+      int16_t dotY = cy - 86;
+      for (int i = 0; i < dots; ++i) {
+        fb.fillCircle(dotX + i * 12, dotY, 3, CLR_EYE);
+      }
+      return true;
+    }
+    case EX_IDEA: {
+      // Bright wide eyes with small pupils + highlight
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t ex2 = cx + side * eyeDX;
+        fb.fillCircle(ex2, eyeY, eyeR + 1, CLR_EYE);
+        fb.drawCircle(ex2, eyeY, eyeR + 1, CLR_EYE_SHADE);
+        fb.fillCircle(ex2, eyeY, (int16_t)(eyeR * 0.32f), CLR_PUPIL);
+        fb.fillCircle(ex2 - 6, eyeY - 6, 3, CLR_HILITE);
+      }
+      // Arched brows
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t ex2 = cx + side * eyeDX;
+        for (int t = 0; t < 2; ++t) {
+          fb.drawLine(ex2 - eyeR, eyeY - eyeR - 12 + t,
+                      ex2 - 4,     eyeY - eyeR - 18 + t, CLR_BROW);
+          fb.drawLine(ex2 - 4,     eyeY - eyeR - 18 + t,
+                      ex2 + eyeR,  eyeY - eyeR - 12 + t, CLR_BROW);
+        }
+      }
+      // Big grin
+      drawCurve(cx, cy + 58, 112, 18, CLR_MOUTH_DK, true, 1);
+      drawCurve(cx, cy + 57, 112, 18, CLR_MOUTH, true, 4);
+      // Compact lightbulb (no sun rays) placed top-right of the right eye.
+      // Pulsing glow: 0.55 .. 1.0, full cycle ~1.4 s.
+      float pulse = 0.55f + 0.45f *
+                    (0.5f + 0.5f * cosf((float)(now % 1400) / 1400.0f * 2.0f * PI));
+      drawBulbCompact(cx + eyeDX + eyeR + 8, eyeY - eyeR - 6, 18, pulse);
+      return true;
+    }
+    case EX_WINK: {
+      // Animation: mostly winking (left eye closed), but every ~2 s both
+      // eyes "blink" briefly to make the wink feel alive.
+      //   phase 0-1 (200 ms): both eyes briefly open
+      //   phase 2-19 (1800 ms): left closed, right open (the wink pose)
+      int phase = (int)((now / 100) % 20);
+      bool bothOpen = (phase < 2);
+
+      if (bothOpen) {
+        // Both open: a relaxed smile face
+        for (int side = -1; side <= 1; side += 2) {
+          int16_t ex2 = cx + side * eyeDX;
+          fb.fillCircle(ex2, eyeY, eyeR, CLR_EYE);
+          fb.drawCircle(ex2, eyeY, eyeR, CLR_EYE_SHADE);
+          fb.fillCircle(ex2, eyeY, (int16_t)(eyeR * 0.45f), CLR_PUPIL);
+          fb.fillCircle(ex2 - 6, eyeY - 6, 3, CLR_HILITE);
+        }
+      } else {
+        // Left closed (smile arc), right open with gleam
+        drawClosedEye(cx - eyeDX, eyeY, eyeR, /*smileUp=*/true);
+        fb.fillCircle(cx + eyeDX, eyeY, eyeR, CLR_EYE);
+        fb.drawCircle(cx + eyeDX, eyeY, eyeR, CLR_EYE_SHADE);
+        fb.fillCircle(cx + eyeDX, eyeY, (int16_t)(eyeR * 0.45f), CLR_PUPIL);
+        fb.fillCircle(cx + eyeDX - 6, eyeY - 6, 3, CLR_HILITE);
+      }
+      // Brows
+      for (int t = 0; t < 2; ++t) {
+        fb.drawLine(cx - eyeDX - eyeR, eyeY - eyeR - 10 + t,
+                    cx - eyeDX + eyeR, eyeY - eyeR - 10 + t, CLR_BROW);
+        fb.drawLine(cx + eyeDX - eyeR, eyeY - eyeR - 14 + t,
+                    cx + eyeDX + eyeR, eyeY - eyeR - 10 + t, CLR_BROW);
+      }
+      // Lopsided smirk (always, so the character stays consistent)
+      fb.drawLine(cx - 44, cy + 62, cx,      cy + 58, CLR_MOUTH);
+      fb.drawLine(cx,      cy + 58, cx + 44, cy + 50, CLR_MOUTH);
+      fb.drawLine(cx - 44, cy + 63, cx,      cy + 59, CLR_MOUTH);
+      fb.drawLine(cx,      cy + 59, cx + 44, cy + 51, CLR_MOUTH);
+      return true;
+    }
+    case EX_LISTENING: {
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t ex2 = cx + side * eyeDX;
+        fb.fillCircle(ex2, eyeY, eyeR, CLR_EYE);
+        fb.drawCircle(ex2, eyeY, eyeR, CLR_EYE_SHADE);
+        fb.fillCircle(ex2, eyeY, (int16_t)(eyeR * 0.45f), CLR_PUPIL);
+      }
+      // Attentive flat brows
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t ex2 = cx + side * eyeDX;
+        for (int t = 0; t < 2; ++t) {
+          fb.drawLine(ex2 - eyeR, eyeY - eyeR - 10 + t,
+                      ex2 + eyeR, eyeY - eyeR - 10 + t, CLR_BROW);
+        }
+      }
+      // Small neutral-interested mouth
+      fb.fillRoundRect(cx - 18, cy + 55, 36, 6, 3, CLR_MOUTH);
+      // Sound arcs animate outward: each arc's visible index cycles
+      // over 4 positions, giving a "radar ping" feel.
+      int step = (int)((now / 180) % 4);   // 0..3
+      // Draw the 3 arcs with radii shifted by `step` for the outward motion.
+      for (int side = -1; side <= 1; side += 2) {
+        int16_t acx = cx + side * 108;
+        for (int i = 0; i < 3; ++i) {
+          int16_t rr = ((i + step) % 4 + 1) * 8;   // 8..32
+          // We reuse drawSoundArcs for one arc at a time by faking n=1
+          // and telling it to start at ring `rr/8`. Simpler: inline the
+          // one-ring version here.
+          const uint16_t COL = 0x6CDF;
+          const float HALF = PI / 4.0f;
+          const float CENTER = (side > 0) ? 0.0f : PI;
+          int16_t prevX = acx + (int16_t)((float)rr * cosf(CENTER - HALF));
+          int16_t prevY = eyeY + 4 + (int16_t)((float)rr * sinf(CENTER - HALF));
+          for (int s = 1; s <= 8; ++s) {
+            float a = CENTER - HALF + (2.0f * HALF) * (float)s / 8.0f;
+            int16_t nx = acx + (int16_t)((float)rr * cosf(a));
+            int16_t ny = eyeY + 4 + (int16_t)((float)rr * sinf(a));
+            fb.drawLine(prevX, prevY, nx, ny, COL);
+            fb.drawLine(prevX, prevY + 1, nx, ny + 1, COL);
+            prevX = nx; prevY = ny;
+          }
+        }
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 // ── Drawing: face (into the off-screen sprite fb) ───────────────────────
 void drawFace() {
   fb.fillSprite(CLR_BG);
@@ -272,7 +643,23 @@ void drawFace() {
   const int16_t cx = W / 2;
   const int16_t cy = H / 2 - 6;
 
-  const Expression ex = pickExpression(fs.valence, fs.arousal);
+  // An explicit expression hint overrides the V/A-based default pick.
+  Expression ex = expressionFromString(fs.expression);
+  if (ex == EX_NEUTRAL) {
+    ex = pickExpression(fs.valence, fs.arousal);
+  }
+
+  // Try the distinctive ornament path first. If it handles this
+  // expression, skip the V/A renderer entirely (no generic eyes/mouth).
+  if (!fs.sleep && !blinkClosed &&
+      drawExplicitExpression(ex, cx, cy, W, H, millis())) {
+    if (fs.privacy) {
+      fb.fillRect(0, (int16_t)(H * 0.30f), W, (int16_t)(H * 0.22f), CLR_BG);
+      fb.fillRect(0, (int16_t)(H * 0.30f), W, 2, CLR_SURFACE);
+      fb.fillRect(0, (int16_t)(H * 0.52f) - 2, W, 2, CLR_SURFACE);
+    }
+    return;
+  }
 
   int16_t eyeR = 26;
   if (ex == EX_SURPRISED) eyeR = 31;
@@ -601,11 +988,25 @@ void loop() {
   static bool   lastTalk = false, lastListen = false, lastThink = false;
   static bool   lastSleep = false, lastPriv = false, lastBlink = false;
   static String lastViseme = "";
+  static String lastExpr = "";
   static int    lastScene = -1;
   static int    lastSleepPhase = -1;
+  static int    lastAnimPhase = -1;
 
   // Sleep Zzz animation phase — triggers a redraw as the Z's grow.
   int sleepPhase = fs.sleep ? (int)((now / 600) % 4) : -1;
+
+  // Animation phase for expressions that need continuous repaints:
+  // confused (rotating swirls), thinking (dot count), idea (pulsing bulb),
+  // wink (blink cycle), listening (sound-arc radii). 40 ms tick ≈ 25 Hz.
+  int animPhase = -1;
+  if (currentScene == SCENE_FACE && !fs.sleep) {
+    if (fs.expression == "confused" || fs.expression == "thinking" ||
+        fs.expression == "idea"     || fs.expression == "wink"     ||
+        fs.expression == "listening") {
+      animPhase = (int)((now / 40) % 10000);
+    }
+  }
 
   bool dirty =
     fs.valence   != lastV      ||
@@ -618,8 +1019,10 @@ void loop() {
     fs.privacy   != lastPriv   ||
     blinkClosed  != lastBlink  ||
     currentViseme != lastViseme ||
+    fs.expression != lastExpr   ||
     (int)currentScene != lastScene ||
-    sleepPhase    != lastSleepPhase;
+    sleepPhase    != lastSleepPhase ||
+    animPhase     != lastAnimPhase;
 
   if (dirty) {
     switch (currentScene) {
@@ -635,8 +1038,10 @@ void loop() {
     lastTalk = fs.talking; lastListen = fs.listening; lastThink = fs.thinking;
     lastSleep = fs.sleep; lastPriv = fs.privacy;
     lastBlink = blinkClosed; lastViseme = currentViseme;
+    lastExpr = fs.expression;
     lastScene = (int)currentScene;
     lastSleepPhase = sleepPhase;
+    lastAnimPhase = animPhase;
   }
 
   delay(16);  // ~60 fps max check rate — but only redraws on state change

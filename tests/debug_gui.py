@@ -20,6 +20,7 @@ import copy as _copy
 import logging
 import os
 import sys
+import math
 import threading
 import time
 from typing import Optional
@@ -158,12 +159,24 @@ def _btn_row(*buttons: QPushButton) -> QHBoxLayout:
 
 def _persist_doa_offset(config_path: str, offset_deg: float) -> None:
     """Write respeaker.doa_offset_deg back to config.yaml without disturbing
-    comments or unrelated keys. Best-effort; raises on IO errors."""
+    comments or unrelated keys.
+
+    The match captures three groups:
+      \\g<1>  leading indent + "doa_offset_deg:" + space after colon
+      \\g<2>  the value (everything up to whitespace-before-'#' or line end)
+      \\g<3>  any trailing whitespace + inline comment, preserved verbatim
+    We substitute only \\g<2>. Critically, \\g<3> is kept as-is so the
+    leading whitespace before the '#' stays intact — otherwise YAML
+    parses `-89.90# comment` as a single string and the next boot crashes.
+    """
     import re
     with open(config_path) as fh:
         text = fh.read()
-    pattern = re.compile(r"(^\s*doa_offset_deg:\s*)([^\n#]*)", re.MULTILINE)
-    replacement = rf"\g<1>{offset_deg:.2f}"
+    pattern = re.compile(
+        r"(^\s*doa_offset_deg:\s*)(\S+)(\s*(?:#.*)?)$",
+        re.MULTILINE,
+    )
+    replacement = rf"\g<1>{offset_deg:.2f}\g<3>"
     new_text, n = pattern.subn(replacement, text, count=1)
     if n == 0:
         # Key missing — append it under the respeaker block.
@@ -343,6 +356,11 @@ class _Scaffold:
 
 class AudioTab(QWidget):
     chunk_signal = pyqtSignal(object, float, float, float)  # chunk, rms, signed_doa, vad
+    # Cross-thread finaliser for DOA calibration. We need a real signal
+    # here (not QTimer.singleShot) because the worker runs outside the
+    # Qt event loop and a static-timer callback posted from there never
+    # fires. offset=NaN is the sentinel for "no offset to apply".
+    cal_done_signal = pyqtSignal(float, str)
 
     def __init__(self, cfg: AppConfig, shared_head: Optional["SharedHead"] = None) -> None:
         super().__init__()
@@ -406,6 +424,7 @@ class AudioTab(QWidget):
 
         self._scaffold = s
         self.chunk_signal.connect(self._on_chunk)
+        self.cal_done_signal.connect(self._on_cal_done)
         # Poll head pan at 10 Hz so the yellow marker follows the head.
         self._head_timer = QTimer(self); self._head_timer.timeout.connect(self._refresh_head_marker)
         self._head_timer.start(100)
@@ -480,6 +499,9 @@ class AudioTab(QWidget):
         self.set_status("Stopped.")
 
     def _loop(self) -> None:
+        raw_log_next = time.time() + 1.0
+        last_raw: Optional[float] = None
+        raw_stuck_counter = 0
         while self._running:
             # Snapshot refs each iteration — _stop() nulls these out from the
             # GUI thread and we must not AttributeError mid-read.
@@ -492,10 +514,33 @@ class AudioTab(QWidget):
             if c is None:
                 continue
             rms = float(np.sqrt(np.mean(c**2)))
+            raw_doa = float("nan")
             try:
-                doa = float(rs.get_doa_signed()) if rs is not None else float("nan")
+                if rs is not None:
+                    raw_doa = float(rs.get_doa())
+                    doa = float(rs.get_doa_signed())
+                else:
+                    doa = float("nan")
             except Exception:
                 doa = float("nan")
+            # Diagnostic: log raw DOA once per second and detect a frozen
+            # chip (same value for N consecutive reads when the RMS is high
+            # enough to plausibly be speech).
+            if not np.isnan(raw_doa):
+                if last_raw is not None and abs(raw_doa - last_raw) < 0.5 and rms > 0.05:
+                    raw_stuck_counter += 1
+                else:
+                    raw_stuck_counter = 0
+                last_raw = raw_doa
+                now = time.time()
+                if now >= raw_log_next:
+                    stuck_note = (
+                        f" [stuck {raw_stuck_counter} frames — speak louder / clap]"
+                        if raw_stuck_counter > 30 else ""
+                    )
+                    log.info(f"DOA raw={raw_doa:5.1f}° signed={doa:+6.1f}° "
+                             f"rms={rms:.3f}{stuck_note}")
+                    raw_log_next = now + 1.0
             if vad is not None:
                 try: vad.process_chunk(c)
                 except Exception: pass
@@ -522,31 +567,74 @@ class AudioTab(QWidget):
         self._vad_card.set_value(f"{vad_prob:.2f}")
         head_pan = self._current_head_pan()
         head_str = f"{head_pan:+5.1f}°" if head_pan is not None else "—"
+        raw_str = "—"
+        if self._rs is not None:
+            try:
+                raw_str = f"{int(self._rs.get_doa()):3d}°"
+            except Exception:
+                pass
+        # Gate readings on RMS: the ReSpeaker holds its last angle in
+        # silence, so anything below ~0.05 RMS is almost always stale.
+        # When stale we dim the label and the polar marker and append
+        # "(stale)" so the user isn't misled by a held direction.
+        live = rms > 0.05
+        live_color = PALETTE["text"]
+        stale_color = PALETTE["muted"]
         if np.isnan(doa):
             self._doa.set_angle(0.0, active=False)
-            self._doa_label.setText(f"DOA: —   ·   head: {head_str}   ·   RMS: {rms:.3f}")
-        else:
-            self._doa.set_angle(doa, active=(rms > 0.05))
+            self._doa_label.setStyleSheet(f"color: {stale_color};")
             self._doa_label.setText(
-                f"DOA: {doa:+6.1f}°   ·   head: {head_str}   ·   RMS: {rms:.3f}"
+                f"raw: {raw_str}   ·   body: —   ·   head: {head_str}   ·   RMS: {rms:.3f}"
+            )
+        else:
+            self._doa.set_angle(doa, active=live)
+            self._doa_label.setStyleSheet(f"color: {live_color if live else stale_color};")
+            tag = "" if live else "   ·   (stale)"
+            self._doa_label.setText(
+                f"raw: {raw_str}   ·   body: {doa:+6.1f}°   ·   "
+                f"head: {head_str}   ·   RMS: {rms:.3f}{tag}"
             )
 
     # ── Calibration actions ─────────────────────────────────────────────
     def _sample_raw_doa(self, duration_s: float = 2.0) -> Optional[float]:
         """Average the raw (unsigned 0-359) DOA over `duration_s`.
-        Uses a circular-mean so wraparound near 360 doesn't smear."""
+        Uses a circular-mean so wraparound near 360 doesn't smear.
+
+        Per-sample exceptions are swallowed (USB hiccups happen) — we
+        only return None if the entire window produced zero samples.
+        Also logs timing so we can tell whether get_doa() is just slow
+        (blocking HID transfer) vs. raising.
+        """
         if self._rs is None:
             return None
         import math
         xs, ys = 0.0, 0.0
         n = 0
+        errs = 0
+        slowest = 0.0
         t0 = time.time()
         while time.time() - t0 < duration_s:
-            raw = float(self._rs.get_doa())
+            t_call = time.time()
+            try:
+                raw = float(self._rs.get_doa())
+            except Exception as exc:
+                errs += 1
+                if errs == 1:
+                    log.warning(f"get_doa() raised: {exc!r} (suppressing further)")
+                time.sleep(0.05)
+                continue
+            dt = time.time() - t_call
+            slowest = max(slowest, dt)
             xs += math.cos(math.radians(raw))
             ys += math.sin(math.radians(raw))
             n += 1
-            time.sleep(0.05)
+            # Only sleep if get_doa was fast; otherwise it already ate the budget.
+            if dt < 0.05:
+                time.sleep(0.05 - dt)
+        log.info(
+            f"DOA sample window: elapsed={time.time()-t0:.2f}s samples={n} "
+            f"errs={errs} slowest_call={slowest*1000:.0f}ms"
+        )
         if n == 0:
             return None
         mean = math.degrees(math.atan2(ys / n, xs / n))
@@ -579,11 +667,39 @@ class AudioTab(QWidget):
         for b in (self._zero_btn, self._auto_btn, self._reset_btn):
             b.setEnabled(False)
         self.set_status(f"{label} — sampling 2 s…")
+        # Watchdog — even if the worker thread or Qt slot gets lost,
+        # force-recover after 10 s. Audio-input and ReSpeaker HID share
+        # the same USB device, and a blocking `get_doa()` call can spike
+        # to several seconds on a busy bus, so 5 s was too tight.
+        QTimer.singleShot(10000, self._cal_watchdog)
+
+    def _cal_watchdog(self) -> None:
+        if self._cal_busy:
+            log.warning("Calibration watchdog fired — worker never completed.")
+            self.set_status("Calibration timed out (check logs). Buttons re-enabled.")
+            self._end_cal()
 
     def _end_cal(self) -> None:
         self._cal_busy = False
         for b in (self._zero_btn, self._auto_btn, self._reset_btn):
             b.setEnabled(self._rs is not None)
+
+    def _on_cal_done(self, offset: float, msg: str) -> None:
+        """Qt-thread slot invoked via `cal_done_signal.emit(...)` from the
+        calibration worker. offset=NaN means 'no offset to apply, just
+        unstick the tab and show the message'. try/except/finally here is
+        the last line of defence — _end_cal() MUST run.
+        """
+        try:
+            if not math.isnan(offset):
+                self._apply_offset(offset)
+            if msg:
+                self.set_status(msg)
+        except Exception as exc:
+            log.exception("DOA calibration apply failed")
+            self.set_status(f"Calibration error: {exc}")
+        finally:
+            self._end_cal()
 
     def _cal_zero(self) -> None:
         if self._rs is None or self._cal_busy:
@@ -591,12 +707,20 @@ class AudioTab(QWidget):
         self._start_cal("Zero here")
 
         def _bg():
-            raw = self._sample_raw_doa(2.0)
-            if raw is None:
-                QTimer.singleShot(0, lambda: (self.set_status("Calibration failed — no DOA."), self._end_cal()))
-                return
-            # "Directly in front" → raw reading becomes the offset.
-            QTimer.singleShot(0, lambda: (self._apply_offset(raw), self._end_cal()))
+            # Any failure in the worker still has to signal the main
+            # thread — otherwise the tab stays stuck in sampling state
+            # until the watchdog fires.
+            try:
+                raw = self._sample_raw_doa(2.0)
+                if raw is None:
+                    self.cal_done_signal.emit(float("nan"),
+                                              "Calibration failed — no DOA samples.")
+                    return
+                self.cal_done_signal.emit(float(raw), "")
+            except Exception as exc:
+                log.exception("Zero-calibration worker crashed")
+                self.cal_done_signal.emit(float("nan"),
+                                          f"Calibration crashed: {exc}")
         threading.Thread(target=_bg, daemon=True).start()
 
     def _cal_auto(self) -> None:
@@ -608,20 +732,31 @@ class AudioTab(QWidget):
         self._start_cal("Auto-calibrate from head")
 
         def _bg():
-            raw = self._sample_raw_doa(2.0)
-            pan = self._current_head_pan()
-            if raw is None or pan is None:
-                QTimer.singleShot(0, lambda: (self.set_status("Calibration failed."), self._end_cal()))
-                return
-            # User direction in body frame = head_pan_deg (since head is pointed at them).
-            # Want body-frame DOA ≈ head_pan → offset = raw − head_pan.
-            QTimer.singleShot(0, lambda: (self._apply_offset(raw - pan), self._end_cal()))
+            try:
+                raw = self._sample_raw_doa(2.0)
+                pan = self._current_head_pan()
+                if raw is None or pan is None:
+                    self.cal_done_signal.emit(float("nan"),
+                                              "Calibration failed — missing DOA or head pose.")
+                    return
+                self.cal_done_signal.emit(float(raw - pan), "")
+            except Exception as exc:
+                log.exception("Auto-calibration worker crashed")
+                self.cal_done_signal.emit(float("nan"),
+                                          f"Calibration crashed: {exc}")
         threading.Thread(target=_bg, daemon=True).start()
 
     def _cal_reset(self) -> None:
-        if self._cal_busy:
-            return
-        self._apply_offset(0.0)
+        # Reset is a safety valve — if an earlier calibration left
+        # _cal_busy stuck True, force it false here before applying so the
+        # tab can always be recovered without restarting.
+        self._cal_busy = False
+        try:
+            self._apply_offset(0.0)
+        except Exception as exc:
+            log.exception("DOA reset failed")
+            self.set_status(f"Reset error: {exc}")
+        self._end_cal()
 
 
 # ── STT tab ─────────────────────────────────────────────────────────────────
@@ -849,21 +984,27 @@ class LLMTab(QWidget):
         threading.Thread(target=self._run, args=(q,), daemon=True).start()
 
     def _run(self, q: str) -> None:
-        t0 = time.time()
+        # Whole body under try — any crash MUST emit reply_signal so the
+        # _generating flag gets cleared in _append_reply and the input
+        # re-enables. Otherwise the user can't send a follow-up message.
         try:
-            out = self._llm.generate(
-                user_message=q, history=[],
-                system_prompt=self.cfg.llm.system_prompt,
-            )
+            t0 = time.time()
+            try:
+                out = self._llm.generate(
+                    user_message=q, history=[],
+                    system_prompt=self.cfg.llm.system_prompt,
+                )
+            except Exception as exc:
+                self.reply_signal.emit(f"[generation failed: {exc!r}]")
+                return
+            dt = max(1e-6, time.time() - t0)
+            text = out if isinstance(out, str) and out else "[empty response]"
+            toks = max(1, len(text.split()))
+            self.reply_signal.emit(text)
+            self.metric_signal.emit(toks / dt, dt)
         except Exception as exc:
-            self.reply_signal.emit(f"[generation failed: {exc!r}]")
-            return
-        dt = max(1e-6, time.time() - t0)
-        # Tolerate None / empty returns so the generating-flag always clears.
-        text = out if isinstance(out, str) and out else "[empty response]"
-        toks = max(1, len(text.split()))
-        self.reply_signal.emit(text)
-        self.metric_signal.emit(toks / dt, dt)
+            log.exception("LLM worker crashed")
+            self.reply_signal.emit(f"[LLM crashed: {exc!r}]")
 
     def _append_reply(self, text: str) -> None:
         self._chat.appendPlainText(text + "\n")
@@ -931,40 +1072,49 @@ class TTSTab(QWidget):
         threading.Thread(target=self._bg, args=(sentence,), daemon=True).start()
 
     def _bg(self, sentence: str) -> None:
-        """Runs on a worker thread. Touches no Qt widgets; emits done_signal."""
-        from companion.audio.io import AudioOutput
-        from companion.audio.tts import TextToSpeech
+        """Runs on a worker thread. Touches no Qt widgets; emits done_signal.
 
+        Whole body is inside an outer try so a completely unexpected
+        crash (module import failure, math error on edge-case audio) still
+        emits done_signal and re-enables the Speak button.
+        """
         try:
-            if self._tts is None or self._tts.active_engine != self.cfg.tts.engine:
-                self._tts = TextToSpeech(self.cfg.tts, project_root=self.cfg.project_root)
-                self._out = AudioOutput({"output_sample_rate": self._tts.output_sample_rate})
-        except Exception as exc:
-            self.done_signal.emit(False, f"TTS init failed: {exc!r}", "", 0.0)
-            return
+            from companion.audio.io import AudioOutput
+            from companion.audio.tts import TextToSpeech
 
-        t0 = time.time()
-        try:
-            pcm = self._tts.synthesize(sentence)
-        except Exception as exc:
-            self.done_signal.emit(False, f"Synthesis failed: {exc!r}", "", 0.0)
-            return
-        if pcm is None:
-            self.done_signal.emit(False, "Synthesis failed (no audio).", "", 0.0)
-            return
+            try:
+                if self._tts is None or self._tts.active_engine != self.cfg.tts.engine:
+                    self._tts = TextToSpeech(self.cfg.tts, project_root=self.cfg.project_root)
+                    self._out = AudioOutput({"output_sample_rate": self._tts.output_sample_rate})
+            except Exception as exc:
+                self.done_signal.emit(False, f"TTS init failed: {exc!r}", "", 0.0)
+                return
 
-        duration = len(pcm) / 2 / self._tts.output_sample_rate
-        rtf = (time.time() - t0) / max(0.001, duration)
-        preview = (
-            f"{len(pcm) // 2} samples  ·  {duration:.1f} s of audio\n\n"
-            f"Engine: {self._tts.active_engine}   Voice: {self.cfg.tts.voice}"
-        )
-        try:
-            self._out.play_pcm(pcm, self._tts.output_sample_rate)
+            t0 = time.time()
+            try:
+                pcm = self._tts.synthesize(sentence)
+            except Exception as exc:
+                self.done_signal.emit(False, f"Synthesis failed: {exc!r}", "", 0.0)
+                return
+            if pcm is None:
+                self.done_signal.emit(False, "Synthesis failed (no audio).", "", 0.0)
+                return
+
+            duration = len(pcm) / 2 / self._tts.output_sample_rate
+            rtf = (time.time() - t0) / max(0.001, duration)
+            preview = (
+                f"{len(pcm) // 2} samples  ·  {duration:.1f} s of audio\n\n"
+                f"Engine: {self._tts.active_engine}   Voice: {self.cfg.tts.voice}"
+            )
+            try:
+                self._out.play_pcm(pcm, self._tts.output_sample_rate)
+            except Exception as exc:
+                self.done_signal.emit(False, f"Playback failed: {exc!r}", preview, rtf)
+                return
+            self.done_signal.emit(True, f"Played · RTF {rtf:.2f}.", preview, rtf)
         except Exception as exc:
-            self.done_signal.emit(False, f"Playback failed: {exc!r}", preview, rtf)
-            return
-        self.done_signal.emit(True, f"Played · RTF {rtf:.2f}.", preview, rtf)
+            log.exception("TTS worker crashed")
+            self.done_signal.emit(False, f"TTS crashed: {exc!r}", "", 0.0)
 
     def _on_done(self, ok: bool, status: str, preview: str, rtf: float) -> None:
         self._speaking = False
@@ -1140,13 +1290,16 @@ class MemoryTab(QWidget):
         self._busy(True); self.set_status("Adding…")
 
         def _bg():
-            if not self._ensure():
-                self.done_signal.emit("error", "Memory unavailable.", [])
-                return
+            # Outer try so even a crash in _ensure() still emits done_signal
+            # and the buttons come back — otherwise tab stays busy forever.
             try:
+                if not self._ensure():
+                    self.done_signal.emit("error", "Memory unavailable.", [])
+                    return
                 self._mem.add(text, sp)
                 self.done_signal.emit("add", f"Added for '{sp}'.", [])
             except Exception as exc:
+                log.exception("Memory add crashed")
                 self.done_signal.emit("error", f"Add failed: {exc!r}", [])
         threading.Thread(target=_bg, daemon=True).start()
 
@@ -1159,15 +1312,16 @@ class MemoryTab(QWidget):
         self._busy(True); self.set_status("Searching…")
 
         def _bg():
-            if not self._ensure():
-                self.done_signal.emit("error", "Memory unavailable.", [])
-                return
             try:
+                if not self._ensure():
+                    self.done_signal.emit("error", "Memory unavailable.", [])
+                    return
                 hits = self._mem.retrieve(q, sp)
                 self.done_signal.emit(
                     "search", f"{len(hits)} hit(s) for '{sp}'.", list(hits),
                 )
             except Exception as exc:
+                log.exception("Memory search crashed")
                 self.done_signal.emit("error", f"Search failed: {exc!r}", [])
         threading.Thread(target=_bg, daemon=True).start()
 
@@ -1176,13 +1330,14 @@ class MemoryTab(QWidget):
         self._busy(True); self.set_status(f"Forgetting all for '{sp}'…")
 
         def _bg():
-            if not self._ensure():
-                self.done_signal.emit("error", "Memory unavailable.", [])
-                return
             try:
+                if not self._ensure():
+                    self.done_signal.emit("error", "Memory unavailable.", [])
+                    return
                 self._mem.forget(sp)
                 self.done_signal.emit("forget", f"Cleared all memories for '{sp}'.", [])
             except Exception as exc:
+                log.exception("Memory forget crashed")
                 self.done_signal.emit("error", f"Forget failed: {exc!r}", [])
         threading.Thread(target=_bg, daemon=True).start()
 
@@ -1286,20 +1441,25 @@ class VisionTab(QWidget):
         self.set_status(f"Waiting for first frame (camera: {backend})…")
 
         def _wait_for_frame():
-            t0 = time.time()
-            while time.time() - t0 < 3.0:
-                if not self._acquired:
-                    # User clicked Stop while we were waiting.
-                    return
-                if pipe.get_state().frame is not None:
-                    self.ready_signal.emit(True, f"Running · camera: {backend}")
-                    return
-                time.sleep(0.05)
-            self.ready_signal.emit(
-                False,
-                f"Camera opened ({backend}) but no frames in 3 s — "
-                "check /dev/video0 / CSI cable / use_csi in config.",
-            )
+            # Outer try so a crash inside pipe.get_state() still gets the
+            # tab out of "Waiting for first frame…" state.
+            try:
+                t0 = time.time()
+                while time.time() - t0 < 3.0:
+                    if not self._acquired:
+                        return  # user clicked Stop
+                    if pipe.get_state().frame is not None:
+                        self.ready_signal.emit(True, f"Running · camera: {backend}")
+                        return
+                    time.sleep(0.05)
+                self.ready_signal.emit(
+                    False,
+                    f"Camera opened ({backend}) but no frames in 3 s — "
+                    "check /dev/video0 / CSI cable / use_csi in config.",
+                )
+            except Exception as exc:
+                log.exception("Vision wait-for-frame crashed")
+                self.ready_signal.emit(False, f"Start crashed: {exc}")
         threading.Thread(target=_wait_for_frame, daemon=True).start()
 
     def _on_ready(self, ok: bool, msg: str) -> None:
@@ -1473,22 +1633,29 @@ class VLMTab(QWidget):
         threading.Thread(target=self._bg, args=("__CAPTION__",), daemon=True).start()
 
     def _bg(self, q: str) -> None:
-        if not self._ensure_vlm():
-            self.done_signal.emit("[VLM unavailable — check model files]", 0.0)
-            return
-        frame = self._grab_frame()
-        if frame is None:
-            self.done_signal.emit(
-                "[no frame from camera — is another tab holding it?]", 0.0,
-            )
-            return
-        self.frame_signal.emit(frame)
-        t0 = time.time()
+        # Outer try — _ensure_vlm or _grab_frame can raise on first call
+        # (model loading, camera init); a crash here must still emit
+        # done_signal or the Ask / Caption buttons stay disabled forever.
         try:
-            out = self._vlm.caption(frame) if q == "__CAPTION__" else self._vlm.answer(frame, q)
+            if not self._ensure_vlm():
+                self.done_signal.emit("[VLM unavailable — check model files]", 0.0)
+                return
+            frame = self._grab_frame()
+            if frame is None:
+                self.done_signal.emit(
+                    "[no frame from camera — is another tab holding it?]", 0.0,
+                )
+                return
+            self.frame_signal.emit(frame)
+            t0 = time.time()
+            try:
+                out = self._vlm.caption(frame) if q == "__CAPTION__" else self._vlm.answer(frame, q)
+            except Exception as exc:
+                out = f"[inference failed: {exc!r}]"
+            self.done_signal.emit(out or "[no output]", time.time() - t0)
         except Exception as exc:
-            out = f"[inference failed: {exc!r}]"
-        self.done_signal.emit(out or "[no output]", time.time() - t0)
+            log.exception("VLM worker crashed")
+            self.done_signal.emit(f"[VLM crashed: {exc!r}]", 0.0)
 
     def _on_done(self, text: str, latency: float) -> None:
         self._result.setPlainText(text)
@@ -1505,13 +1672,17 @@ class VLMTab(QWidget):
 class FaceTab(QWidget):
     # (valence, arousal, sleep, expression_hint). Each preset picks a V/A
     # pair AND an explicit expression hint so the renderer draws
-    # distinctive ornaments (swirl eyes for confused, teeth for angry,
-    # teardrop for sad, sparkles for excited) instead of blurring together.
+    # distinctive ornaments (swirl eyes for confused, lightbulb for idea,
+    # heart eyes for love, etc.) instead of blurring together.
     PRESETS = (
         ("Neutral",   (0.0,   0.0, False, None)),
         ("Excited",   (+0.8, +0.9, False, "excited")),
         ("Surprised", (+0.1, +0.95, False, "surprised")),
         ("Confused",  (-0.25, +0.35, False, "confused")),
+        ("Thinking",  (+0.05, -0.1, False, "thinking")),
+        ("Idea",      (+0.7, +0.6, False, "idea")),
+        ("Wink",      (+0.5, +0.3, False, "wink")),
+        ("Listening", (+0.1, +0.1, False, "listening")),
         ("Sad",       (-0.7, -0.3, False, "sad")),
         ("Angry",     (-0.7, +0.7, False, "angry")),
         ("Sleep",     (0.0,  -0.8, True,  None)),

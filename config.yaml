@@ -124,7 +124,7 @@ respeaker:
   product_id: 0x0018
   led_brightness: 20
   doa_enabled: true
-  doa_offset_deg: 0.0                         # set by Audio-tab calibration
+  doa_offset_deg: -93.48   # set by Audio-tab calibration
 
 # ── Vision (camera + face + emotion) ────────────────────────────────────────
 vision:
