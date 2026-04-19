@@ -129,6 +129,10 @@ def _display_loop(
         from IPython.display import Image as _Image, clear_output as _clear, display as _display
         ipy_image, ipy_clear, ipy_display = _Image, _clear, _display
 
+    window_name = "face_track_demo"
+    window_created = False
+    was_visible = False                           # set True once the window has actually drawn
+
     while time.monotonic() < t_end:
         t0 = time.monotonic()
         snap = tracker.latest_snapshot()
@@ -143,8 +147,32 @@ def _display_loop(
                     ipy_clear(wait=True)
                     ipy_display(ipy_image(data=jpg.tobytes()))
             elif display == "window":
-                cv2.imshow("face_track_demo", img)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                try:
+                    if not window_created:
+                        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                        cv2.resizeWindow(window_name, img.shape[1], img.shape[0])
+                        window_created = True
+                        print(f"window: opened ({img.shape[1]}x{img.shape[0]}). "
+                              f"Press 'q' in the window or close it to stop.")
+                    cv2.imshow(window_name, img)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q"):
+                        print("window: 'q' pressed, stopping.")
+                        break
+                    # X-button close detection — but only after the window has
+                    # been visible at least once. WND_PROP_VISIBLE returns <1
+                    # for both "closed" and "not yet drawn", so we need a
+                    # one-shot edge: went visible, now invisible → closed.
+                    visible = cv2.getWindowProperty(window_name,
+                                                    cv2.WND_PROP_VISIBLE) >= 1
+                    if visible:
+                        was_visible = True
+                    elif was_visible:
+                        print("window: closed by user, stopping.")
+                        break
+                except cv2.error as exc:
+                    print(f"window display failed ({exc}); is a DISPLAY configured? "
+                          f"Fall back by passing display='notebook' or 'none'.")
                     break
         rem = period - (time.monotonic() - t0)
         if rem > 0:

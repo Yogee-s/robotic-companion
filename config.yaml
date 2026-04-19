@@ -132,10 +132,11 @@ vision:
   width: 1280
   height: 720
   fps: 30
-  flip_method: 2                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
+  flip_method: 0                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
   use_csi: true
   detect_every_n_frames: 2
-  face_model_path: models/vision/face_detection_yunet_2023mar.onnx
+  yolo_pose_model_path: models/vision/yolo26n-pose.onnx
+  face_model_path: models/vision/face_detection_yunet_2023mar.onnx   # unused (legacy), kept for tests
   emotion_model_path: models/vision/enet_b0_8_best_afew.onnx
   face_score_threshold: 0.75                  # raise to reject weak detections (bg walls, chairs, etc)
   smoothing: 0.7
@@ -175,8 +176,8 @@ motor:
   right_servo_id: 2
 
   # Calibration outputs ─────────────────────────────────────────────────────
-  left_zero_tick: 2197  # encoder tick when head is centered + level
-  right_zero_tick: 2212
+  left_zero_tick: 2246  # encoder tick when head is centered + level
+  right_zero_tick: 2036
   left_direction: 1  # ±1, per-motor sign (set by direction test)
   right_direction: -1
   gear_ratio_nominal: 2.0                     # CAD: crown_teeth / pinion_teeth (40/20 = 2.0)
@@ -186,8 +187,8 @@ motor:
   invert_tilt: false
 
   # Soft limits, degrees — head must return to center, no 360° pan
-  pan_limits_deg: [-39.001, 39.001]
-  tilt_limits_deg: [-10.041, 12.0186]
+  pan_limits_deg: [-37.9023, 37.9023]
+  tilt_limits_deg: [-13.9521, 12.0186]
 
   # Motion + safety ─────────────────────────────────────────────────────────
   max_speed_ticks_per_s: 2000

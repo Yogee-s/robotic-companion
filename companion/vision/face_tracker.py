@@ -203,12 +203,29 @@ class FaceTracker:
             if rem > 0:
                 self._stop.wait(rem)
 
-    def _safe_recenter(self) -> None:
-        """Best-effort: command (0, 0) on exit so the head ends in a known pose."""
+    def _safe_recenter(self, settle_timeout_s: float = 2.0,
+                       settle_tol_deg: float = 2.0) -> None:
+        """Command (0, 0) on exit and wait for the head to actually settle
+        there before returning — otherwise the caller will disable torque
+        mid-motion and the head will flop.
+        """
         try:
             self.head.set_head_pose(0.0, 0.0)
         except Exception as e:
             log.debug(f"on-exit recenter failed: {e}")
+            return
+        # Wait for the poll thread's live encoder read to converge to (0, 0),
+        # or for the timeout to expire.
+        deadline = time.monotonic() + settle_timeout_s
+        while time.monotonic() < deadline:
+            try:
+                pan = abs(float(self.head.state.pan_deg))
+                tilt = abs(float(self.head.state.tilt_deg))
+                if pan <= settle_tol_deg and tilt <= settle_tol_deg:
+                    break
+            except Exception:
+                break
+            time.sleep(0.05)
 
 
 def _move_toward(x: float, target: float, max_step: float) -> float:

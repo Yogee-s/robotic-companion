@@ -163,9 +163,10 @@ class VisionConfig:
     flip_method: int = 0
     use_csi: bool = True
     detect_every_n_frames: int = 2
+    yolo_pose_model_path: str = "models/vision/yolo26n-pose.onnx"
     face_model_path: str = "models/vision/face_detection_yunet_2023mar.onnx"
     emotion_model_path: str = "models/vision/enet_b0_8_best_afew.onnx"
-    face_score_threshold: float = 0.6
+    face_score_threshold: float = 0.5
     smoothing: float = 0.7
     staleness_fade_seconds: float = 3.0
 

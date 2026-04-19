@@ -72,8 +72,8 @@ class EmotionPipeline:
             use_csi=self.cfg.get("use_csi", True),
         )
         self.face_detector = FaceDetector(
-            model_path=self.cfg.get("face_model_path", "models/vision/face_detection_yunet_2023mar.onnx"),
-            score_threshold=self.cfg.get("face_score_threshold", 0.6),
+            model_path=self.cfg.get("yolo_pose_model_path", "models/vision/yolo26n-pose.onnx"),
+            score_threshold=self.cfg.get("face_score_threshold", 0.5),
         )
         self.classifier = EmotionClassifier(
             model_path=self.cfg.get("emotion_model_path", "models/vision/enet_b0_8_best_afew.onnx"),
