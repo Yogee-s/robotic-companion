@@ -21,7 +21,7 @@
     <li><a href="#kinematics">5. Kinematics</a></li>
     <li><a href="#perception">6. Perception</a></li>
     <li><a href="#conversation">7. Conversation &amp; LLM</a></li>
-    <li><a href="#integration">8. Integration runtime</a></li>
+    <li><a href="#integration">8. Runtime infrastructure</a></li>
     <li><a href="#display">9. Display &amp; face</a></li>
     <li><a href="#testing">10. Testing &amp; verification</a></li>
     <li><a href="#constraints">11. 8 GB memory budget</a></li>
@@ -105,7 +105,7 @@
     <li><a href="#kinematics">Kinematics</a></li>
     <li><a href="#perception">Perception subsystems</a></li>
     <li><a href="#conversation">Conversation and LLM stack</a></li>
-    <li><a href="#integration">Integration and runtime infrastructure</a></li>
+    <li><a href="#integration">Runtime infrastructure</a></li>
     <li><a href="#display">Display and face</a></li>
     <li><a href="#testing">Testing and verification</a></li>
     <li><a href="#constraints">Design under an 8 GB memory budget</a></li>
@@ -156,7 +156,7 @@
       </tr>
       <tr>
         <td>Face rendering</td>
-        <td>2.8&nbsp;inch ESP32 touchscreen; 12 expressions driven by LLM affect tags.</td>
+        <td>2.8&nbsp;inch ESP32 touchscreen; 13 expressions driven by LLM affect tags.</td>
         <td>&mdash;</td>
       </tr>
       <tr>
@@ -498,7 +498,7 @@ radians_per_tick = (2π) / 4096</div>
       </tr>
       <tr>
         <td><strong>VAD</strong><br><code>audio/vad.py</code></td>
-        <td>Silero v5 ONNX (CPU). Four-state machine calls back into ConversationManager on SPEECH_START and SPEECH_END.</td>
+        <td>Silero VAD v5 (Silero Team, 2023) ONNX on CPU. Four-state machine calls back into ConversationManager on SPEECH_START and SPEECH_END.</td>
         <td>Threshold 0.35; 32 ms windows.</td>
       </tr>
       <tr>
@@ -534,7 +534,7 @@ radians_per_tick = (2π) / 4096</div>
       </tr>
       <tr>
         <td><strong>Face detection</strong><br><code>vision/face_detector.py</code></td>
-        <td>YOLO26n-pose keypoints (nose, eyes, ears) synthesise a face bbox. More robust on a wide-angle lens than a dedicated detector; eye midpoint is a better aim-point than a bbox centroid.</td>
+        <td>YOLO26n-pose (Jocher et al., 2024) keypoints (nose, eyes, ears) synthesise a face bbox. More robust on a wide-angle lens than a dedicated detector; eye midpoint is a better aim-point than a bbox centroid.</td>
         <td>15 Hz effective detection.</td>
       </tr>
       <tr>
@@ -577,10 +577,10 @@ radians_per_tick = (2π) / 4096</div>
 
   <h3>8.1 Bring-up sequence</h3>
   <p>
-    <code>main.py</code> boots in a fixed nine-step order (Table&nbsp;2). The order is not cosmetic: on the Jetson's unified 8&nbsp;GB memory pool, the LLM needs a single contiguous ~2&nbsp;GB block. Every ONNX Runtime session (VAD, STT, YOLO, and friends) opens its own CUDA arena on first use, and loading even one of them before the LLM fragments the GPU heap enough that the LLM's big allocation fails mid-boot. <strong>Step 3</strong> (highlighted) is therefore the load-bearing rule of the whole boot: LLM first, every other GPU consumer after.
+    <code>main.py</code> boots in a fixed nine-step order (Table&nbsp;1). The order is not cosmetic: on the Jetson's unified 8&nbsp;GB memory pool, the LLM needs a single contiguous ~2&nbsp;GB block. Every ONNX Runtime session (VAD, STT, YOLO, and friends) opens its own CUDA arena on first use, and loading even one of them before the LLM fragments the GPU heap enough that the LLM's big allocation fails mid-boot. <strong>Step 3</strong> (highlighted) is therefore the load-bearing rule of the whole boot: LLM first, every other GPU consumer after.
   </p>
   <table class="bringup-table">
-    <caption><strong>Table 2.</strong> Nine-step bring-up order in <code>main.py</code>. Step 3 must precede any ONNX CUDA session (<a href="#constraints">Chapter 11.2</a>).</caption>
+    <caption><strong>Table 1.</strong> Nine-step bring-up order in <code>main.py</code>. Step 3 must precede any ONNX CUDA session (<a href="#constraints">Chapter 11.2</a>).</caption>
     <thead>
       <tr><th>Step</th><th>Subsystem</th><th>Notes</th></tr>
     </thead>
@@ -648,7 +648,7 @@ TOUCH 120 185
 BOOT companion_face</code></pre>
 
   <h3>9.3 Expression engine</h3>
-  <p>Twelve expressions are available.</p>
+  <p>Thirteen expressions are available.</p>
   <ul>
     <li><strong>Derived from valence and arousal:</strong> neutral, happy, excited, surprised, sad, angry, calm.</li>
     <li><strong>Explicit ornaments</strong> (when the valence-arousal circumplex of Russell (1980) is not specific enough): confused, thinking, idea, love, wink, listening.</li>
@@ -764,7 +764,7 @@ BOOT companion_face</code></pre>
     Scene-aware replies, visual question answering, and any reply that cites what the camera currently shows are absent. <code>SceneWatcher</code> and the VQA branch exist in the codebase, verified in isolation. The plumbing works; the model does not fit.
   </div>
   <p>
-    <strong>Emotion classification, not integrated.</strong> The HSEmotion classifier (<code>vision/emotion_classifier.py</code>) is functional in isolation. Running it alongside the face detector, LLM, Parakeet, TTS, and camera buffer pushed the 8 GB pool into swap or allocation failure during sustained turns. It is disabled in the integrated build to keep the voice loop reliable.
+    <strong>Emotion classification, not integrated.</strong> The HSEmotion classifier (Savchenko, 2023; <code>vision/emotion_classifier.py</code>) is functional in isolation. Running it alongside the face detector, LLM, Parakeet, TTS, and camera buffer pushed the 8 GB pool into swap or allocation failure during sustained turns. It is disabled in the integrated build to keep the voice loop reliable.
   </p>
   <div class="callout warn">
     <span class="callout-label">Gap 2: affect perception standalone only</span>
@@ -866,16 +866,13 @@ BOOT companion_face</code></pre>
   <h2>References</h2>
 
   <ol class="reference-list">
-    <li id="ref-gervasi-2023">
-      Gerasimov, S. (2023). <em>HSEmotion: A real-time efficient facial expression recogniser</em>. Open-source release.
+    <li id="ref-savchenko-2023">
+      Savchenko, A. V. (2023). <em>HSEmotion: A real-time efficient facial expression recogniser</em>. Open-source release.
       <span class="ref-link">github.com/HSE-asavchenko/hsemotion</span>
     </li>
     <li id="ref-gerganov-2023">
       Gerganov, G. (2023). <em>llama.cpp: Inference of LLaMA models in pure C/C++</em>. Open-source release.
       <span class="ref-link">github.com/ggerganov/llama.cpp</span>
-    </li>
-    <li id="ref-grauman-2022">
-      Grauman, K. et al. (2022). "Ego4D: Around the world in 3,000 hours of egocentric video". <em>Proc. IEEE CVPR</em>, 18995-19012.
     </li>
     <li id="ref-ito-2013">
       Ito, T. et al. (2013). "Effect of robot seal PARO on neuro-psychological symptoms in elderly individuals with dementia". <em>Journal of the American Medical Directors Association</em>, Vol 14(9), 661-667.
@@ -883,9 +880,6 @@ BOOT companion_face</code></pre>
     <li id="ref-jocher-2024">
       Jocher, G. et al. (2024). <em>Ultralytics YOLO26n-pose: Keypoint detection with a nano backbone</em>. Open-source release.
       <span class="ref-link">github.com/ultralytics/ultralytics</span>
-    </li>
-    <li id="ref-kawaguchi-2012">
-      Kawaguchi, Y. et al. (2012). "Evaluation of a therapeutic seal robot in elderly care". <em>Gerontechnology</em>, Vol 11(2), 366.
     </li>
     <li id="ref-livingai-2022">
       Living.ai (2022). <em>EMO: A petite desk pet with a mind of its own</em>. Product documentation.
@@ -912,22 +906,12 @@ BOOT companion_face</code></pre>
       Silero Team (2023). <em>Silero VAD: Pre-trained enterprise-grade voice activity detector</em>. Open-source release.
       <span class="ref-link">github.com/snakers4/silero-vad</span>
     </li>
-    <li id="ref-taggers-2023">
-      Taggers Inc. (2023). <em>Mem0: The memory layer for personalized AI</em>. Open-source release.
-      <span class="ref-link">github.com/mem0ai/mem0</span>
-    </li>
-    <li id="ref-touvron-2023">
-      Touvron, H. et al. (2023). "Llama 2: Open foundation and fine-tuned chat models". <em>arXiv:2307.09288</em>.
-    </li>
     <li id="ref-wada-2007">
       Wada, K. and Shibata, T. (2007). "Living with seal robots: Its sociopsychological and physiological influences on the elderly at a care house". <em>IEEE Trans. Robotics</em>, Vol 23(5), 972-980.
     </li>
     <li id="ref-yamamoto-2018">
       Yamamoto, Y. (2018). <em>Qoobo: A therapeutic robot in the shape of a cushion with a tail</em>. Yukai Engineering product documentation.
       <span class="ref-link">qoobo.info</span>
-    </li>
-    <li id="ref-zhou-2024">
-      Zhou, C. et al. (2024). "A survey on multimodal large language models". <em>National Science Review</em>, Vol 11(12), nwae403.
     </li>
   </ol>
 </section>
