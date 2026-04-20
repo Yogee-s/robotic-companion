@@ -82,7 +82,7 @@
 <section id="acknowledgments" class="frontmatter">
   <h2>Acknowledgments</h2>
   <p>
-    I thank my project supervisor, A/Prof Khoo Eng Tat of the Department of Engineering Science, for his patient guidance throughout this project.
+    I thank my project supervisor, A/Prof Khoo Eng Tat, for his patient guidance throughout this project.
   </p>
   <p>
     I also acknowledge the open-source community whose projects make an on-device stack of this scope possible on a single 8 GB edge board, in particular the authors and maintainers of llama.cpp, Parakeet TDT, Silero VAD, Piper, YOLO26n-pose, and HSEmotion.
@@ -157,7 +157,7 @@
       <tr>
         <td>Face rendering</td>
         <td>2.8&nbsp;inch ESP32 touchscreen; 13 expressions driven by LLM affect tags.</td>
-        <td>&mdash;</td>
+        <td>None.</td>
       </tr>
       <tr>
         <td>Voice interaction</td>
@@ -291,27 +291,27 @@
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_1_too_big.png" alt="Prototype 1">
-      <div class="iter-title">P1 &mdash; too big</div>
+      <div class="iter-title">P1: too big</div>
       <div class="iter-issue">Mechanically correct but base and motor pockets were bulky; head sized for a much larger enclosure.</div>
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_2_cable_issue.png" alt="Prototype 2">
-      <div class="iter-title">P2 &mdash; cable clash</div>
+      <div class="iter-title">P2: cable clash</div>
       <div class="iter-issue">More compact, but side-mounted servo cables ran directly into the pinion sweep. No viable routing.</div>
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_3_sectioned.png" alt="Prototype 3">
-      <div class="iter-title">P3 &mdash; sectioned</div>
+      <div class="iter-title">P3: sectioned</div>
       <div class="iter-issue">Monolithic base split into two printable halves. Print orientation respects tooth-load direction.</div>
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_4_unaligned_pivot.png" alt="Prototype 4">
-      <div class="iter-title">P4 &mdash; pivot off</div>
+      <div class="iter-title">P4: pivot off</div>
       <div class="iter-issue">Tilt pivot sat below the mesh plane. Any tilt skipped teeth under load.</div>
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_5_aligned_pivot.png" alt="Prototype 5">
-      <div class="iter-title">P5 &mdash; pivot aligned</div>
+      <div class="iter-title">P5: pivot aligned</div>
       <div class="iter-issue">Pivot moved onto the crown plane. Tilt becomes pure rotation at the mesh; engagement holds over the full travel.</div>
     </figure>
   </div>
@@ -591,12 +591,12 @@ radians_per_tick = (2π) / 4096</div>
       <tr><td>1</td><td>Config, logging, readiness gate</td><td>Audits every model file path; fails loudly on missing models.</td></tr>
       <tr><td>2</td><td>EventBus, GPU arbiter, Telemetry recorder</td><td>Core plumbing; must exist before any subsystem emits events.</td></tr>
       <tr class="critical-row"><td>3</td><td><strong>LLM engine (quantised)</strong></td><td><strong>Critical:</strong> claims a contiguous ~2&nbsp;GB VRAM block before any ONNX arena can fragment the heap.</td></tr>
-      <tr><td>4</td><td>Audio stack &mdash; VAD, STT, TTS, ReSpeaker</td><td>ONNX sessions open CUDA arenas now, after the LLM block is secured.</td></tr>
-      <tr><td>5</td><td>Vision stack &mdash; camera, face detection</td><td>Camera ring buffer and YOLO session start.</td></tr>
-      <tr><td>6</td><td>Motor stack &mdash; homing, face-tracker wire-up</td><td>Head homes to calibrated zero; optional.</td></tr>
+      <tr><td>4</td><td>Audio stack (VAD, STT, TTS, ReSpeaker)</td><td>ONNX sessions open CUDA arenas now, after the LLM block is secured.</td></tr>
+      <tr><td>5</td><td>Vision stack (camera, face detection)</td><td>Camera ring buffer and YOLO session start.</td></tr>
+      <tr><td>6</td><td>Motor stack (homing, face-tracker wire-up)</td><td>Head homes to calibrated zero; optional.</td></tr>
       <tr><td>7</td><td>ConversationManager (turn orchestrator)</td><td>Wires audio&nbsp;&rarr;&nbsp;LLM&nbsp;&rarr;&nbsp;TTS with streaming hand-offs.</td></tr>
       <tr><td>8</td><td>BehaviorEngine, Coordinator, HealthMonitor</td><td>Starts the 20&nbsp;Hz face/motor tick and the 1&nbsp;Hz watchdog.</td></tr>
-      <tr><td>9</td><td>Renderer &mdash; startup greeting, UI or headless loop</td><td>Announces ready state and hands over to the event loop.</td></tr>
+      <tr><td>9</td><td>Renderer (startup greeting, UI or headless loop)</td><td>Announces ready state and hands over to the event loop.</td></tr>
     </tbody>
   </table>
   <p>
@@ -605,7 +605,7 @@ radians_per_tick = (2π) / 4096</div>
 
   <h3 class="break-before">8.2 Runtime services</h3>
   <p>
-    Once bring-up completes, four small services carry the coordination load. The <strong>event bus</strong> is the spine (Figure 15): publishers emit typed events such as <code>TurnStarted</code>, <code>AffectTag</code>, and <code>StateChanged</code> on an async worker thread, and any number of subscribers can listen. Each handler runs inside its own try-except, so a crashing listener cannot stop the others — crucial in a long-running companion that should degrade gracefully rather than die. The remaining three services are summarised in the table below.
+    Once bring-up completes, four small services carry the coordination load. The <strong>event bus</strong> is the spine (Figure 15): publishers emit typed events such as <code>TurnStarted</code>, <code>AffectTag</code>, and <code>StateChanged</code> on an async worker thread, and any number of subscribers can listen. Each handler runs inside its own try-except, so a crashing listener cannot stop the others. This is crucial in a long-running companion that should degrade gracefully rather than die. The remaining three services are summarised in the table below.
   </p>
   <figure class="figure wide">
     <img src="assets/figures/event_bus.svg" alt="Event bus.">
@@ -719,6 +719,16 @@ BOOT companion_face</code></pre>
   <p>
     The live still in <a href="#kinematics">Chapter 5.5</a> is the <strong>end-to-end integration evidence</strong>: calibration preview, motor-controller logs, and the physical head all respond to the same slider event on the same frame.
   </p>
+
+  <h3>10.1 Manual bring-up testing</h3>
+  <p>
+    Beyond the automated tests, each subsystem was <strong>manually exercised</strong> during bring-up: head tracking by walking across the camera's view; voice in/out by conversational turns against the latency target; affect-tag to expression mapping by prompting for each of the thirteen tones and watching the ESP32 face respond; the DOA gate by speaking from different positions; and HSEmotion (standalone) by holding varied expressions and reading valence/arousal in the debug GUI. These walkthroughs caught most of the integration issues that unit tests could not see.
+  </p>
+
+  <h3>10.2 Structured user testing (future work)</h3>
+  <p>
+    The testing above confirms the <strong>engineering is sound</strong>, but not that the robot feels pleasant or intuitive to real users. Rigorous <strong>user testing</strong> with outside participants is out of scope for this proof-of-concept and is planned in the roadmap (<a href="#future-work">Chapter 12</a>): whether head tracking feels attentive, voice pacing feels natural, expressions match perceived tone, engagement gates fire in realistic rooms, and re-enabled HSEmotion cues improve perceived warmth.
+  </p>
 </section>
 
 <!-- ═══════════════════ 11. CONSTRAINTS ═══════════════════ -->
@@ -764,7 +774,7 @@ BOOT companion_face</code></pre>
   </p>
   <div class="callout warn">
     <span class="callout-label">Gap 1: no visual reasoning in the integrated turn</span>
-    Scene-aware replies, visual question answering, and any reply that cites what the camera currently shows are absent. <code>SceneWatcher</code> and the VQA branch exist in the codebase, verified in isolation. The plumbing works; the model does not fit.
+    Scene-aware replies, <strong>visual question answering (VQA)</strong>, and any reply that cites what the camera currently shows are absent. <code>SceneWatcher</code> (background scene captioning) and the VQA branch (which answers &ldquo;what is this?&rdquo; by fusing the current camera frame with the user question) both exist in the codebase and are verified in isolation. The plumbing works; the multimodal model does not fit alongside everything else.
   </div>
   <p>
     <strong>Emotion classification, not integrated.</strong> The HSEmotion classifier (Savchenko, 2023; <code>vision/emotion_classifier.py</code>) is functional in isolation. Running it alongside the face detector, LLM, Parakeet, TTS, and camera buffer pushed the 8 GB pool into swap or allocation failure during sustained turns. It is disabled in the integrated build to keep the voice loop reliable.
