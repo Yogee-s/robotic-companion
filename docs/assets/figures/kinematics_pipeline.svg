@@ -18,7 +18,7 @@
   </defs>
   <rect class="bg" width="1100" height="280"/>
 
-  <text class="title" x="550" y="28" text-anchor="middle">Inverse kinematics pipeline — user pose to motor ticks</text>
+  <text class="title" x="550" y="28" text-anchor="middle">Inverse kinematics pipeline · user pose to motor ticks</text>
 
   <!-- Input -->
   <rect class="ibox" x="20" y="100" width="120" height="80"/>

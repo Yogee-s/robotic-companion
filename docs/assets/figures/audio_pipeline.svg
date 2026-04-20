@@ -21,7 +21,7 @@
   </defs>
   <rect class="bg" width="560" height="640"/>
 
-  <text class="title" x="280" y="28" text-anchor="middle">Audio subsystem — capture and synthesis</text>
+  <text class="title" x="280" y="28" text-anchor="middle">Audio subsystem · capture and synthesis</text>
 
   <rect class="io"  x="180" y="62" width="200" height="52"/>
   <text class="tb"  x="280" y="88" text-anchor="middle">ReSpeaker 4-mic</text>
