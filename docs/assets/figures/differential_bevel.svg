@@ -96,7 +96,7 @@
 
   <!-- ═══════ MOUNT ═══════ -->
   <rect class="mount" x="300" y="310" width="400" height="26"/>
-  <text class="smallt" x="500" y="327" text-anchor="middle">3D-printed PLA mount · rigid base</text>
+  <text class="smallt" x="500" y="327" text-anchor="middle">3D-printed PETG mount · rigid base</text>
 
   <!-- ═══════ DIRECTION NOTES ═══════ -->
   <g transform="translate(80, 358)">

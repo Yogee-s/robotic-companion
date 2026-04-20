@@ -176,6 +176,7 @@
   figure.cad.lg img { max-height: 80mm !important; }
   .figures-side-by-side figure.cad img { max-height: 50mm !important; }
   .figures-side-by-side figure.cad.lg img { max-height: 80mm !important; }
+  .figures-side-by-side figure.cad.hero img { max-height: 95mm !important; }
 
   h3 { margin-top: 0.7em !important; margin-bottom: 0.2em !important; font-size: 11.5pt !important; }
   h4 { margin-top: 0.5em !important; margin-bottom: 0.15em !important; font-size: 10.5pt !important; }

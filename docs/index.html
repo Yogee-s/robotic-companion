@@ -151,7 +151,7 @@
     <tbody>
       <tr>
         <td>Physical expressivity</td>
-        <td>2-DOF differential-bevel head (novel mechanical contribution).</td>
+        <td>2-DOF differential-bevel head (primary mechanical contribution).</td>
         <td>Soft plush shell with pressure-touch regions.</td>
       </tr>
       <tr>
@@ -279,7 +279,7 @@
 <section id="mechanical" class="chapter">
   <h2>4. Mechanical design and iteration history</h2>
   <p>
-    The head is the novel physical contribution, so the mechanical side came first. It went through <strong>six CAD revisions</strong> before it worked reliably, each exposing a new failure mode. Revisions are labelled <strong>P1</strong>&ndash;<strong>P5</strong> (&ldquo;Prototype&nbsp;1&rdquo; through &ldquo;Prototype&nbsp;5&rdquo;) below the initial concept. The grid presents every iteration side-by-side; the lessons table that follows captures what each revision taught.
+    The head is the primary physical contribution, so the mechanical side came first. It went through <strong>six CAD revisions</strong> before it worked reliably, each exposing a new failure mode. Revisions are labelled <strong>P1</strong>&ndash;<strong>P5</strong> (&ldquo;Prototype&nbsp;1&rdquo; through &ldquo;Prototype&nbsp;5&rdquo;) below the initial concept. The grid presents every iteration side-by-side; the lessons table that follows captures what each revision taught.
   </p>
 
   <h3>4.1 CAD iterations</h3>
@@ -287,7 +287,7 @@
     <figure class="iter-card">
       <img src="assets/images/original_concept.png" alt="Original concept">
       <div class="iter-title">Concept</div>
-      <div class="iter-issue">Two pinion bevels meshing with one crown. Principle locked; every later revision is packaging.</div>
+      <div class="iter-issue">Two pinion bevels meshing with one crown. Principle locked; every later revision is packaging. Adapted from an open-source differential bevel design (Thingiverse, 2022).</div>
     </figure>
     <figure class="iter-card">
       <img src="assets/images/prototype_1_too_big.png" alt="Prototype 1">
@@ -336,7 +336,7 @@
       <tr><td>Oversized form factor</td><td>P1</td><td>Tighten envelope to motor, gearbox, and head payload only.</td></tr>
       <tr><td>Cable clash with gear sweep</td><td>P2</td><td>Route cables behind servo bodies.</td></tr>
       <tr><td>Unprintable monolithic geometry</td><td>P3</td><td>Section into halves along a tooth-load-aware plane.</td></tr>
-      <tr><td>Tilt pivot not concentric with crown</td><td>P4 &rarr; P5</td><td>Move pivot into the gear-mesh plane.</td></tr>
+      <tr><td>Tilt pivot not concentric with crown</td><td>P4 / P5</td><td>Move pivot into the gear-mesh plane.</td></tr>
       <tr><td>Head payload off-axis sag</td><td>Final</td><td>Cantilever TFT and camera with CoM close to pivot.</td></tr>
     </tbody>
   </table>
@@ -353,7 +353,10 @@
     </figure>
   </div>
   <p>
-    The build sits on a 3D-printed PLA mount. Visible below the head are the 40-tooth crown and 20-tooth pinions; the two ST3215 servos are mirror-mounted with cables routed to the rear; a CSI ribbon runs up to the camera; and the 2.8&nbsp;inch ESP32 TFT renders the face. The two states illustrate the display subsystem (<a href="#display">Chapter 9</a>) responding to affect commands from the LLM.
+    The build sits on a 3D-printed PETG mount. Visible below the head are the 40-tooth crown and 20-tooth pinions; the two ST3215 servos are mirror-mounted with cables routed to the rear; a CSI ribbon runs up to the camera; and the 2.8&nbsp;inch ESP32 TFT renders the face. The two states illustrate the display subsystem (<a href="#display">Chapter 9</a>) responding to affect commands from the LLM.
+  </p>
+  <p>
+    Only the <strong>screen and camera</strong> are held with <strong>tape</strong> on this prototype, a deliberately temporary fixture while the mounting geometry was iterated; every other component is already fastened mechanically. A final product iteration would replace the tape with a screwed-in housing (small M2&nbsp;/&nbsp;M2.5 fasteners through the printed front panel) for rigid retention and serviceability.
   </p>
 </section>
 
@@ -905,6 +908,10 @@ BOOT companion_face</code></pre>
     <li id="ref-silero-2023">
       Silero Team (2023). <em>Silero VAD: Pre-trained enterprise-grade voice activity detector</em>. Open-source release.
       <span class="ref-link">github.com/snakers4/silero-vad</span>
+    </li>
+    <li id="ref-thingiverse-2022">
+      Thingiverse (2022). <em>Two-motor differential bevel-gear pan/tilt mechanism</em>. Open-source CAD reference; concept basis for this project's head kinematics.
+      <span class="ref-link">thingiverse.com/thing:5438369</span>
     </li>
     <li id="ref-wada-2007">
       Wada, K. and Shibata, T. (2007). "Living with seal robots: Its sociopsychological and physiological influences on the elderly at a care house". <em>IEEE Trans. Robotics</em>, Vol 23(5), 972-980.

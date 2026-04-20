@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Executive Summary · Robot Companion</title>
+<style>
+@page {
+  size: A4;
+  margin: 20mm 22mm 22mm 22mm;
+  @bottom-center {
+    content: "Executive Summary   |   Robot Companion   |   Page " counter(page) " / " counter(pages);
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    color: #7a7d8a;
+  }
+}
+
+html, body {
+  font-family: Arial, "Helvetica Neue", sans-serif;
+  color: #1e1e2e;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  margin: 0;
+  padding: 0;
+}
+
+header.exec-header {
+  text-align: center;
+  margin-bottom: 6mm;
+}
+header.exec-header img.nus-logo {
+  width: 35mm;
+  margin-bottom: 3mm;
+}
+header.exec-header .course {
+  font-size: 8.5pt;
+  letter-spacing: 1.5pt;
+  color: #4b4f5a;
+  text-transform: uppercase;
+  margin-bottom: 1.5mm;
+}
+header.exec-header .doc-type {
+  font-size: 11pt;
+  color: #1e66f5;
+  font-weight: 700;
+  letter-spacing: 1pt;
+  text-transform: uppercase;
+  margin-bottom: 2mm;
+}
+header.exec-header h1 {
+  font-size: 17pt;
+  margin: 0 0 3mm;
+  color: #1e1e2e;
+  font-weight: 700;
+}
+header.exec-header .subtitle {
+  font-size: 10.5pt;
+  font-style: italic;
+  color: #4b4f5a;
+  margin-bottom: 3mm;
+}
+header.exec-header .authors {
+  font-size: 9.5pt;
+  color: #4b4f5a;
+  line-height: 1.5;
+}
+header.exec-header .authors strong { color: #1e1e2e; }
+
+hr.divider {
+  border: none;
+  border-top: 1px solid #d0d0d4;
+  margin: 4mm 0 5mm;
+}
+
+section h2 {
+  font-size: 11.5pt;
+  color: #1e66f5;
+  margin: 4mm 0 1.5mm;
+  font-weight: 700;
+}
+
+p {
+  margin: 0 0 2.5mm;
+  text-align: justify;
+}
+
+ul {
+  margin: 1mm 0 3mm;
+  padding-left: 6mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+li {
+  margin: 0.8mm 0;
+  text-align: justify;
+}
+li::marker { color: #1e66f5; }
+
+.hero-photo {
+  float: right;
+  width: 48mm;
+  margin: 0 0 3mm 5mm;
+  text-align: center;
+}
+.hero-photo img {
+  width: 48mm;
+  height: auto;
+  border-radius: 3px;
+  display: block;
+}
+.hero-photo figcaption {
+  font-size: 8.5pt;
+  color: #7a7d8a;
+  margin-top: 1mm;
+}
+
+section { page-break-inside: avoid; }
+
+.photo-strip {
+  display: flex;
+  gap: 4mm;
+  justify-content: center;
+  margin: 3mm 0 4mm;
+}
+.photo-strip img {
+  width: 55mm;
+  height: auto;
+  border-radius: 3px;
+}
+.photo-strip figcaption {
+  font-size: 8.5pt;
+  color: #7a7d8a;
+  text-align: center;
+  margin-top: 1.5mm;
+}
+
+.footer-note {
+  margin-top: 5mm;
+  padding-top: 3mm;
+  border-top: 1px solid #e0e0e4;
+  font-size: 8.5pt;
+  color: #7a7d8a;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<header class="exec-header">
+  <img class="nus-logo" src="assets/images/nus_logo.jpg" alt="NUS">
+  <div class="course">Undergraduate Research Experience (UREx)</div>
+  <div class="doc-type">Executive Summary</div>
+  <h1>Robot Companion</h1>
+  <div class="subtitle">An AI Social Companion Robot for Elderly Care</div>
+  <div class="authors">
+    <strong>Muthukumaran Yogeeswaran</strong> (A0253028L) &nbsp;·&nbsp;
+    Supervised by <strong>A/Prof Khoo Eng Tat</strong>, Department of Engineering Science, CDE, NUS
+  </div>
+</header>
+
+<hr class="divider">
+
+<section>
+  <h2>Why this project?</h2>
+  <p>
+    Older adults, particularly in care settings, often experience loneliness and low mood. Clinical studies of simple companion robots, most famously the <em>PARO</em> therapy seal, show that even a small, responsive robotic presence can measurably reduce agitation and isolation. The goal of this project, scoped for potential future collaboration with <strong>NUS Nursing</strong>, was to design and build a first-step prototype of an <strong>affordable, privacy-preserving companion robot</strong> that looks at, listens to, and speaks with the person in front of it.
+  </p>
+</section>
+
+<section>
+  <h2>What was built</h2>
+  <figure class="hero-photo">
+    <img src="assets/images/robot_happy_face.jpg" alt="Assembled prototype with happy expression.">
+    <figcaption>The assembled prototype, showing a happy expression.</figcaption>
+  </figure>
+  <p>
+    A small desktop robot with a <strong>mechanically expressive head</strong> and a friendly animated face on a 2.8-inch touchscreen. The robot watches the person, listens when they speak, and responds naturally out loud. Its head tilts and turns smoothly to follow the person's face, so the robot visibly <em>&ldquo;looks at you&rdquo;</em> when you talk. This is the single most human-like attention cue a machine can give.
+  </p>
+  <p>
+    Critically, <strong>everything runs on a small computer inside the robot</strong>. Nothing is sent to the cloud, so conversations stay completely private, an important property for a device meant for elderly or vulnerable users.
+  </p>
+</section>
+
+<section>
+  <h2>How it works, in plain terms</h2>
+  <p>
+    The robot has three parts working together. A custom 3D-printed head mechanism uses two small motors and a gear arrangement to let the head pan and tilt precisely in two directions. A camera, a four-microphone array, and a touchscreen give the robot its senses and face. And an on-device AI &ldquo;brain&rdquo; handles the conversation: it converts speech to text, generates a natural-sounding reply, and speaks it back through a speaker, typically within about a second of the user finishing their sentence. The face on the touchscreen reacts to the emotional tone of each reply (happy, curious, surprised, and so on), giving the robot a sense of presence beyond just its voice.
+  </p>
+</section>
+
+<section>
+  <h2>Key outcomes</h2>
+  <ul>
+    <li>A custom <strong>two-motor head mechanism</strong> that achieves smooth, independent pan and tilt using affordable off-the-shelf servos. This is the main engineering contribution of the project.</li>
+    <li>A complete <strong>offline voice conversation loop</strong> (listen, understand, reply, speak) with sub-second response, running on a single small edge computer.</li>
+    <li>Thirteen distinct <strong>facial expressions</strong> that change automatically based on the emotional tone of each reply.</li>
+    <li>A guided <strong>setup wizard</strong> that calibrates the motors on any new unit in nine simple steps, no programming required.</li>
+    <li>Every conversation turn is logged locally for later review, making the behaviour of the system transparent and auditable.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Engineering journey</h2>
+  <p>
+    The head went through <strong>six design iterations</strong> before it worked reliably. Each version surfaced a different real-world problem: cables running into moving gears, a pivot placed off-axis so the head skipped teeth under load, parts too bulky to 3D-print cleanly. The final design fixes all of them. Similarly, fitting modern AI components (speech recognition, language understanding, speech synthesis) into the tight memory budget of a small edge computer required careful engineering decisions about which parts could run at the same time.
+  </p>
+</section>
+
+<section>
+  <h2>Known limitations and future work</h2>
+  <p>
+    The small edge computer chosen for the prototype has limited memory, and two planned features are disabled in the final integrated build: live <strong>facial-emotion recognition</strong> during conversation, and a more capable AI that can <strong>answer questions about what the camera sees</strong>. Both work on their own and simply need a slightly larger (still affordable) computer to be switched on. No re-engineering is required.
+  </p>
+  <p>
+    The forward roadmap is clearly mapped:
+  </p>
+  <ul>
+    <li><strong>Step 1</strong> (this report): the working engineering platform.</li>
+    <li><strong>Step 2</strong>: move to a larger edge computer to unlock the two disabled features, and fine-tune the AI for elderly-care conversations (potentially with NUS Nursing).</li>
+    <li><strong>Step 3</strong>: wrap the robot in a soft plush shell with touch-sensitive regions, bringing the tactile dimension of PARO into the design.</li>
+    <li><strong>Step 4</strong>: a structured clinical pilot in a real care setting.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Bottom line</h2>
+  <p>
+    This project delivers a <strong>working proof-of-concept</strong> of a privacy-first, on-device companion robot. The hardest parts (the custom mechanical head, the voice-interaction loop running fully offline, and the expressive face) are built and demonstrated. The remaining steps toward a real care-setting pilot are about polish, validation and one small hardware upgrade, not fundamental invention.
+  </p>
+</section>
+
+<div class="footer-note">
+  Full technical report, source code, and assembly instructions:
+  <a href="https://github.com/Yogee-s/robotic-companion">github.com/Yogee-s/robotic-companion</a>
+</div>
+
+</body>
+</html>
