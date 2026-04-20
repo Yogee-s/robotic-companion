@@ -704,95 +704,136 @@ figure.cad.hero img              { max-height: 420px; }
   line-height: 1.6;
 }
 
-/* ─── Brief block (label ABOVE, body below) ──────────────────────────── */
+/* ─── Brief block (label INSIDE the box, body follows) ───────────────── */
 
 .brief-block {
-  margin: 16px 0;
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.55;
 }
 
 .brief-heading {
+  display: block;
   font-size: 14px;
   font-weight: 700;
   color: var(--accent);
-  margin-bottom: 6px;
+  margin: 0 0 6px;
   letter-spacing: 0;
 }
 
 .brief-body {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  color: var(--text);
-  font-size: 15px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 14.5px;
   line-height: 1.55;
 }
 
 /* ─── Callout boxes (key takeaway / note / warn) ─────────────────────── */
-/* Matches the brief-block pattern: label sits ABOVE the box as a heading, */
-/* body is a clean grey box underneath. */
+/* Label sits INSIDE the box on its own line, body follows underneath. */
 
 .callout {
-  margin: 26px 0 18px;
-  padding: 14px 18px;
+  margin: 14px 0;
+  padding: 12px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--text);
   font-size: 14.5px;
   line-height: 1.55;
-  position: relative;
 }
 
-.callout > :first-child:not(.callout-label) { margin-top: 0; }
+.callout > :first-child { margin-top: 0; }
 .callout > :last-child  { margin-bottom: 0; }
 
 .callout-label {
   display: block;
-  position: absolute;
-  top: -22px;
-  left: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--accent);
-  letter-spacing: 0;
-  margin: 0;
+  margin: 0 0 6px;
   padding: 0;
+  letter-spacing: 0;
 }
 
 .callout.note  .callout-label { color: var(--teal); }
 .callout.warn  .callout-label { color: var(--warn); }
 
-/* Step chain — horizontal pill-shaped chips connected by arrows */
+/* Step chain — single-row pill-shaped chips connected by arrows */
 .step-chain {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 8px 10px;
-  margin: 22px 0;
-  padding: 18px 14px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: 4px 6px;
+  margin: 14px 0;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .step-chain .step {
-  background: #ffffff;
-  border: 1px solid var(--border-2);
-  border-radius: 22px;
-  padding: 8px 18px;
-  font-size: 13.5px;
-  font-weight: 600;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--accent-2);
   white-space: nowrap;
 }
 
 .step-chain .step-arrow {
   color: var(--muted);
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
   user-select: none;
+  padding: 0 2px;
+}
+
+/* Iteration grid for compact mechanical design history */
+.iteration-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.iter-card {
+  margin: 0;
+  text-align: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 8px 10px;
+}
+
+.iter-card img {
+  display: block;
+  max-height: 140px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 0 auto 6px;
+}
+
+.iter-card .iter-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-2);
+  margin: 2px 0 4px;
+}
+
+.iter-card .iter-issue {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  text-align: left;
 }
 
 /* Horizontal row for side-by-side small photos (related-work etc.) */
