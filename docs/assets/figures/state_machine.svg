@@ -39,7 +39,7 @@
 
   <!-- Title -->
   <text class="title" x="590" y="26" text-anchor="middle">Conversation state machine</text>
-  <text class="sub"   x="590" y="46" text-anchor="middle">canonical turn (green) &nbsp;·&nbsp; return to idle (blue) &nbsp;·&nbsp; interrupt and error (dashed)</text>
+  <text class="sub"   x="590" y="46" text-anchor="middle">canonical turn (green) · return to idle (blue) · interrupt and error (dashed)</text>
 
   <!-- ═════════ MAIN ROW OF STATES (y 190..280) ═════════ -->
   <!-- Wider horizontal gaps between boxes (90 px) so the arrow labels fit cleanly -->
@@ -60,7 +60,7 @@
   <!-- CAPTURING_INTENT -->
   <rect class="state" x="520" y="190" width="190" height="90"/>
   <text class="tb"  x="615" y="225" text-anchor="middle">CAPTURING_INTENT</text>
-  <text class="sub" x="615" y="245" text-anchor="middle">VAD end &rarr; STT</text>
+  <text class="sub" x="615" y="245" text-anchor="middle">VAD end → STT</text>
   <text class="sub" x="615" y="262" text-anchor="middle">engagement gate</text>
 
   <!-- THINKING -->
@@ -95,7 +95,7 @@
   <!-- ═════════ RETURN TO IDLE (blue arc across the top, y=90..190) ═════════ -->
   <path class="ret" d="M 1075 190 C 1075 80, 110 80, 110 190" marker-end="url(#b)"/>
   <rect class="lblbg" x="515" y="68" width="150" height="16"/>
-  <text class="retl" x="590" y="80" text-anchor="middle">done &rarr; IDLE_WATCHING</text>
+  <text class="retl" x="590" y="80" text-anchor="middle">done → IDLE_WATCHING</text>
 
   <!-- ═════════ RECOVERING BOX (dashed, below the row, clearly separated, y=400..460) ═════════ -->
   <rect class="rec" x="520" y="400" width="190" height="60"/>
@@ -110,12 +110,12 @@
   <!-- ═════════ RECOVERED PATH (RECOVERING → IDLE_WATCHING) ═════════ -->
   <path class="err" d="M 520 430 L 110 430 L 110 280" marker-end="url(#m)"/>
   <rect class="lblbg" x="200" y="422" width="200" height="14"/>
-  <text class="errl" x="300" y="433" text-anchor="middle">recovered &rarr; IDLE_WATCHING</text>
+  <text class="errl" x="300" y="433" text-anchor="middle">recovered → IDLE_WATCHING</text>
 
   <!-- ═════════ BARGE-IN (dashed, SPEAKING → LISTENING, low arc routed BELOW the main row but ABOVE the RECOVERING path) ═════════ -->
   <path class="err" d="M 1075 280 C 1075 340, 355 340, 355 280" marker-end="url(#m)"/>
   <rect class="lblbg" x="560" y="348" width="250" height="14"/>
-  <text class="errl" x="685" y="359" text-anchor="middle">barge-in or new speech &rarr; LISTENING</text>
+  <text class="errl" x="685" y="359" text-anchor="middle">barge-in or new speech → LISTENING</text>
 
   <!-- ═════════ LEGEND (bottom, clear of every path) ═════════ -->
   <g transform="translate(30, 500)">

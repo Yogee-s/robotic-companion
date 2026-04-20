@@ -64,11 +64,7 @@
     </p>
     <p class="problem-scope">
       <strong>Scope of this report.</strong>
-      A proof-of-concept platform: a mechanically-expressive head,
-      a touchscreen face, and a fully-offline voice interaction loop.
-      Domain fine-tuning, a soft tactile shell, and a larger compute
-      platform for concurrent multimodal perception remain future
-      work (see <a href="#future-work">Chapter&nbsp;13</a>).
+      A proof-of-concept platform: a mechanically-expressive head, a touchscreen face, and a fully-offline voice loop. Domain fine-tuning, a soft shell, and a larger compute board remain future work (<a href="#future-work">Ch.&nbsp;12</a>).
     </p>
   </div>
 
@@ -100,9 +96,7 @@
     <li><a href="#introduction">Introduction</a>
       <ol>
         <li><a href="#introduction">The brief</a></li>
-        <li><a href="#introduction">What this report delivers</a></li>
-        <li><a href="#introduction">What is explicitly out of scope</a></li>
-        <li><a href="#introduction">How this report is organised</a></li>
+        <li><a href="#introduction">Scope of this report</a></li>
       </ol>
     </li>
     <li><a href="#background">Background and related work</a></li>
@@ -191,10 +185,6 @@
     Framed as a roadmap: <strong>step one</strong> is the platform in this report; <strong>step two</strong> is a domain-specific language-model fine-tune on a larger compute board; <strong>step three</strong> is the soft shell and tactile sensing; <strong>step four</strong> is a clinical pilot, potentially with NUS Nursing.
   </p>
 
-  <h3>1.3 How this report is organised</h3>
-  <p>
-    A reader can stop at the end of any chapter and still have a coherent picture of the system. <a href="#background">Chapter 2</a> covers related work. <a href="#overview">Chapters 3&ndash;6</a> describe the hardware, mechanical iterations, kinematics, and servo bus. <a href="#perception">Chapters 7&ndash;10</a> cover perception, conversation, runtime, and face display. <a href="#testing">Chapter 10</a> is the test strategy. <a href="#constraints">Chapter 11</a> is the key chapter on the 8 GB memory budget and its design consequences. <a href="#future-work">Chapter 12</a> lays out the forward roadmap; <a href="#conclusion">Chapter 13</a> concludes.
-  </p>
 </section>
 
 <!-- ═══════════════════ 2. BACKGROUND ═══════════════════ -->
@@ -252,7 +242,7 @@
 <section id="overview" class="chapter">
   <h2>3. System overview</h2>
   <p>
-    With the design rationale in place, this chapter lays out the system as a whole: the hardware components, how they connect, and how the software is layered. The four chapters that follow (<a href="#mechanical">4</a> to <a href="#servo-bus">6</a>) then zoom into the mechanical side, and Chapters <a href="#perception">7</a> to <a href="#display">10</a> do the same for the software side.
+    With the design rationale in place, this chapter lays out the system as a whole: the hardware components, how they connect, and how the software is layered. The two chapters that follow (<a href="#mechanical">4</a> and <a href="#kinematics">5</a>) then zoom into the mechanical side, and Chapters <a href="#perception">6</a> to <a href="#display">9</a> do the same for the software side.
   </p>
 
   <h3>3.1 Hardware topology</h3>
@@ -260,7 +250,7 @@
     The robot is <strong>one Jetson with six peripherals</strong>, each a direct single-cable link (Figure 1). The <strong>Jetson Orin Nano 8 GB</strong> (JetPack 6) is the sole compute node; it carries both the CPU workload (Python orchestration, VAD, TTS) and the GPU workload (LLM, STT, vision) on its unified LPDDR5 memory. Around it sit: a <strong>ReSpeaker 4-mic USB array</strong> (XMOS XVF-3800, 12-LED ring) for audio capture and on-board direction-of-arrival estimation; an <strong>IMX219 CSI camera</strong> (640&nbsp;&times;&nbsp;480 at 30 fps over the MIPI ribbon) for face tracking; a <strong>Diymore 2.8&nbsp;inch ESP32 TFT</strong> (ILI9341 display, XPT2046 touch, CH340 USB-serial) which renders the expressive face and returns touch events; two <strong>Feetech ST3215 smart servos</strong> (mirror-mounted 20-tooth pinions driving the head) addressed over a <strong>Waveshare CH343 bus adapter</strong> that runs a 1&nbsp;Mbaud half-duplex Feetech bus; and a <strong>USB speaker</strong> for TTS output.
   </p>
   <p>
-    The topology is deliberately <strong>point-to-point</strong>: every peripheral has its own cable to the Jetson, which keeps USB bandwidth contention predictable and lets any device be swapped without disturbing the rest. The one exception is the servo bus, which daisy-chains the two ST3215 motors behind the CH343 adapter. That bus is the only shared medium in the system, and the firmware chapter (Chapter&nbsp;6) covers the protocol quirks that come with it.
+    The topology is deliberately <strong>point-to-point</strong>: every peripheral has its own cable to the Jetson, which keeps USB bandwidth contention predictable and lets any device be swapped without disturbing the rest. The one exception is the servo bus, which daisy-chains the two ST3215 motors behind the CH343 adapter. That bus is the only shared medium in the system, and the kinematics chapter (<a href="#kinematics">Chapter&nbsp;5.3</a>) covers the protocol quirks that come with it.
   </p>
 
   <figure class="figure wide">
@@ -289,7 +279,7 @@
 <section id="mechanical" class="chapter">
   <h2>4. Mechanical design and iteration history</h2>
   <p>
-    The head is the novel physical contribution, so the mechanical side came first. It went through <strong>six CAD revisions</strong> before it worked reliably, each exposing a new failure mode. The grid below presents every iteration side-by-side; the lessons table captures what each revision taught.
+    The head is the novel physical contribution, so the mechanical side came first. It went through <strong>six CAD revisions</strong> before it worked reliably, each exposing a new failure mode. Revisions are labelled <strong>P1</strong>&ndash;<strong>P5</strong> (&ldquo;Prototype&nbsp;1&rdquo; through &ldquo;Prototype&nbsp;5&rdquo;) below the initial concept. The grid presents every iteration side-by-side; the lessons table that follows captures what each revision taught.
   </p>
 
   <h3>4.1 CAD iterations</h3>
@@ -359,7 +349,7 @@
     </figure>
     <figure class="cad hero">
       <img src="assets/images/robot_happy_face.jpg" alt="Assembled prototype, happy face.">
-      <figcaption><span class="figno">Figure 6.</span> Happy face, driven by an <code>[affect: happy]</code> LLM tag.</figcaption>
+      <figcaption><span class="figno">Figure 6.</span> Happy face, driven by an LLM tag.<br><code>[affect:&nbsp;happy]</code></figcaption>
     </figure>
   </div>
   <p>
@@ -393,12 +383,12 @@
     The two head-frame degrees of freedom come from <em>mixing</em> the two motor inputs. There are no separate physical pan and tilt axes.
   </p>
 
-  <figure class="figure">
+  <figure class="figure wide">
     <img src="assets/figures/differential_bevel.svg" alt="Differential bevel gearbox schematic.">
     <figcaption><span class="figno">Figure 7.</span> Differential bevel schematic. Motor rotations θ<sub>L</sub> and θ<sub>R</sub> mix through the 2&times; reduction to head pan and tilt. The equations are the ones implemented in <code>companion/motor/kinematics.py</code>.</figcaption>
   </figure>
 
-  <h3>5.2 Forward and inverse equations</h3>
+  <h3 class="break-before">5.2 Forward and inverse equations</h3>
   <p>
     Let θ<sub>L</sub> and θ<sub>R</sub> be the left and right motor rotations (radians, relative to calibrated zero). Let <em>p</em> and <em>q</em> be head tilt and pan.
   </p>
@@ -433,16 +423,24 @@ radians_per_tick = (2π) / 4096</div>
     Both tick values go out through Feetech's <code>GroupSyncWrite</code> with the same <code>GOAL_TIME</code>. Without the shared GOAL_TIME, pure-pan commands produce a transient tilt because one motor reaches its target before the other.
   </p>
 
-  <h3>5.4 Calibration and current values</h3>
+  <h3 class="break-before">5.4 Calibration and current values</h3>
   <p>
     Calibration is measured once per unit through a nine-page Qt wizard (<code>companion/ui/calibration_window.py</code>) that captures direction, zeros, limits, axis inversions, and gear ratio; the final page writes every value back to <code>config.yaml</code>. The step-by-step flow is in the repository <a href="https://github.com/Yogee-s/robotic-companion/blob/main/companion/motor/README.md">motor README</a>. Current values on this unit:
   </p>
-<pre><code>left_zero_tick: 2514   right_zero_tick: 2594
-left_direction:   +1   right_direction:   −1
-gear_ratio_measured: 2   backlash_deg: 1
-invert_pan: false      invert_tilt: false
-pan_limits_deg:  [−37.9683, +37.9683]
-tilt_limits_deg: [ −8.0635,  +8.0635]</code></pre>
+  <table class="calib-table">
+    <thead>
+      <tr><th>Parameter</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Zero-tick offset (left / right)</td><td>2514 / 2594</td></tr>
+      <tr><td>Direction sign (left / right)</td><td>+1 / &minus;1</td></tr>
+      <tr><td>Gear ratio (measured; nominal 40/20)</td><td>2.0</td></tr>
+      <tr><td>Backlash</td><td>1&deg;</td></tr>
+      <tr><td>Axis inversion (pan / tilt)</td><td>false / false</td></tr>
+      <tr><td>Pan travel (soft limits)</td><td>&plusmn;37.97&deg;</td></tr>
+      <tr><td>Tilt travel (soft limits)</td><td>&plusmn;8.06&deg;</td></tr>
+    </tbody>
+  </table>
 
   <h3>5.5 Wizard and live demonstration</h3>
   <div class="figures-side-by-side">
@@ -468,7 +466,7 @@ tilt_limits_deg: [ −8.0635,  +8.0635]</code></pre>
 </section>
 
 
-<!-- ═══════════════════ 7. PERCEPTION ═══════════════════ -->
+<!-- ═══════════════════ 6. PERCEPTION ═══════════════════ -->
 <section id="perception" class="chapter">
   <h2>6. Perception subsystems</h2>
   <p>
@@ -548,7 +546,7 @@ tilt_limits_deg: [ −8.0635,  +8.0635]</code></pre>
   </table>
 </section>
 
-<!-- ═══════════════════ 8. CONVERSATION ═══════════════════ -->
+<!-- ═══════════════════ 7. CONVERSATION ═══════════════════ -->
 <section id="conversation" class="chapter">
   <h2>7. Conversation and LLM stack</h2>
   <p>
@@ -568,39 +566,59 @@ tilt_limits_deg: [ −8.0635,  +8.0635]</code></pre>
   <p>
     The <strong>LLM engine</strong> (<code>llm/engine.py</code>) wraps <code>llama-cpp-python</code>. The shipped default is <strong>Llama 3.2 1B</strong> in 4-bit GGUF; Gemma-4-e2b, e4b, and the multimodal variant are a one-line config swap. <strong>Prompt assembly</strong> (<code>llm/prompt.py</code>) attaches up to three optional hint prefixes to the user message (emotion, scene, memory), each gated by whether its source subsystem is active. The system prompt asks the LLM to end every reply with an <code>[affect: ...]</code> tag; the tag is stripped before speaking and dispatched as a <code>FACE</code> command to the ESP32, driving the expression change visible in Figures&nbsp;5&ndash;6.
   </p>
-  <div class="callout note">
-    <span class="callout-label">Memory note</span>
-    Context length is set to 1024 tokens, half the stock default. This alone halves KV-cache growth during a conversation (see <a href="#constraints">Chapter 11.2</a>).
-  </div>
 </section>
 
-<!-- ═══════════════════ 9. INTEGRATION (runtime infra) ═══════════════════ -->
+<!-- ═══════════════════ 8. INTEGRATION (runtime infra) ═══════════════════ -->
 <section id="integration" class="chapter">
   <h2>8. Runtime infrastructure</h2>
   <p>
-    The subsystems above are separate Python packages, but they share <strong>one process</strong>. Four runtime layers hold them together.
+    The subsystems above are separate Python packages but share <strong>one process</strong>. Two concerns hold them together: a deterministic bring-up sequence that loads heavy models in the right order, and a small set of runtime services that every subsystem talks to <em>instead of</em> talking to each other.
   </p>
-  <figure class="figure">
-    <img src="assets/figures/bringup_order.svg" alt="Bring-up order.">
-    <figcaption><span class="figno">Figure 15.</span> Bring-up order; the LLM (red) is loaded before any ONNX session so its weights get a contiguous VRAM block (<a href="#constraints">Chapter 11.2</a>).</figcaption>
-  </figure>
-  <figure class="figure">
+
+  <h3>8.1 Bring-up sequence</h3>
+  <p>
+    <code>main.py</code> boots in a fixed nine-step order (Table&nbsp;2). The order is not cosmetic: on the Jetson's unified 8&nbsp;GB memory pool, the LLM needs a single contiguous ~2&nbsp;GB block. Every ONNX Runtime session (VAD, STT, YOLO, and friends) opens its own CUDA arena on first use, and loading even one of them before the LLM fragments the GPU heap enough that the LLM's big allocation fails mid-boot. <strong>Step 3</strong> (highlighted) is therefore the load-bearing rule of the whole boot: LLM first, every other GPU consumer after.
+  </p>
+  <table class="bringup-table">
+    <caption><strong>Table 2.</strong> Nine-step bring-up order in <code>main.py</code>. Step 3 must precede any ONNX CUDA session (<a href="#constraints">Chapter 11.2</a>).</caption>
+    <thead>
+      <tr><th>Step</th><th>Subsystem</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Config, logging, readiness gate</td><td>Audits every model file path; fails loudly on missing models.</td></tr>
+      <tr><td>2</td><td>EventBus, GPU arbiter, Telemetry recorder</td><td>Core plumbing; must exist before any subsystem emits events.</td></tr>
+      <tr class="critical-row"><td>3</td><td><strong>LLM engine (quantised)</strong></td><td><strong>Critical:</strong> claims a contiguous ~2&nbsp;GB VRAM block before any ONNX arena can fragment the heap.</td></tr>
+      <tr><td>4</td><td>Audio stack &mdash; VAD, STT, TTS, ReSpeaker</td><td>ONNX sessions open CUDA arenas now, after the LLM block is secured.</td></tr>
+      <tr><td>5</td><td>Vision stack &mdash; camera, face detection</td><td>Camera ring buffer and YOLO session start.</td></tr>
+      <tr><td>6</td><td>Motor stack &mdash; homing, face-tracker wire-up</td><td>Head homes to calibrated zero; optional.</td></tr>
+      <tr><td>7</td><td>ConversationManager (turn orchestrator)</td><td>Wires audio&nbsp;&rarr;&nbsp;LLM&nbsp;&rarr;&nbsp;TTS with streaming hand-offs.</td></tr>
+      <tr><td>8</td><td>BehaviorEngine, Coordinator, HealthMonitor</td><td>Starts the 20&nbsp;Hz face/motor tick and the 1&nbsp;Hz watchdog.</td></tr>
+      <tr><td>9</td><td>Renderer &mdash; startup greeting, UI or headless loop</td><td>Announces ready state and hands over to the event loop.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Shutdown walks the reverse order with a 5&nbsp;s hard timeout per subsystem, so a stuck thread cannot keep the process alive indefinitely.
+  </p>
+
+  <h3 class="break-before">8.2 Runtime services</h3>
+  <p>
+    Once bring-up completes, four small services carry the coordination load. The <strong>event bus</strong> is the spine (Figure 15): publishers emit typed events such as <code>TurnStarted</code>, <code>AffectTag</code>, and <code>StateChanged</code> on an async worker thread, and any number of subscribers can listen. Each handler runs inside its own try-except, so a crashing listener cannot stop the others — crucial in a long-running companion that should degrade gracefully rather than die. The remaining three services are summarised in the table below.
+  </p>
+  <figure class="figure wide">
     <img src="assets/figures/event_bus.svg" alt="Event bus.">
-    <figcaption><span class="figno">Figure 16.</span> Event bus. A single async worker thread with exception-isolated handlers.</figcaption>
+    <figcaption><span class="figno">Figure 15.</span> EventBus fan-out. Any publisher may emit any event; any subscriber may listen to any subset; exceptions are caught per-subscriber.</figcaption>
   </figure>
   <table>
-    <thead><tr><th>Layer</th><th>File</th><th>Purpose</th></tr></thead>
+    <thead><tr><th>Service</th><th>File</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td><strong>Bring-up</strong></td><td><code>main.py</code></td><td>Fixed 9-step initialisation order (Figure 15). Order matters because unified memory fragments when ONNX sessions open CUDA arenas before the LLM claims its block.</td></tr>
-      <tr><td><strong>Event bus</strong></td><td><code>core/event_bus.py</code></td><td>Async pub/sub with exception-isolated handlers; a failing subscriber cannot stop the others.</td></tr>
-      <tr><td><strong>GPU arbiter</strong></td><td><code>core/gpu_arbiter.py</code></td><td>Cooperative two-priority lock. Realtime (turn-time LLM, TTS) always wins; background (scene captioning, telemetry) polls <code>should_yield()</code> and drops the lock when realtime waits.</td></tr>
-      <tr><td><strong>Health + readiness</strong></td><td><code>core/health.py</code>, <code>core/readiness.py</code></td><td>1 Hz watchdog for mic starvation, stale camera frames, motor over-temp; readiness audits every model-file path at startup and fails cleanly if a critical model is missing.</td></tr>
-      <tr><td><strong>Telemetry</strong></td><td><code>core/telemetry.py</code></td><td>Every turn writes a JSONL trace (<code>logs/traces_&lt;date&gt;.jsonl</code>) with phase timestamps, token counts, speaker label, and emotion snapshot. An in-memory ring of 100 turns feeds the GUI latency card with rolling p50 / p95.</td></tr>
+      <tr><td><strong>GPU arbiter</strong></td><td><code>core/gpu_arbiter.py</code></td><td>Cooperative two-priority lock. Realtime work (turn-time LLM, TTS) always wins; background work (scene captioning, telemetry) polls <code>should_yield()</code> and drops the lock when realtime waits.</td></tr>
+      <tr><td><strong>Health + readiness</strong></td><td><code>core/health.py</code>, <code>core/readiness.py</code></td><td>1&nbsp;Hz watchdog for mic starvation, stale camera frames, and motor over-temp; readiness audits every model-file path at startup and fails cleanly if a critical model is missing.</td></tr>
+      <tr><td><strong>Telemetry</strong></td><td><code>core/telemetry.py</code></td><td>Every turn writes a JSONL trace (<code>logs/traces_&lt;date&gt;.jsonl</code>) with phase timestamps, token counts, speaker label, and emotion snapshot. An in-memory ring of the last 100 turns feeds the GUI latency card with rolling p50&nbsp;/&nbsp;p95.</td></tr>
     </tbody>
   </table>
 </section>
 
-<!-- ═══════════════════ 10. DISPLAY ═══════════════════ -->
+<!-- ═══════════════════ 9. DISPLAY ═══════════════════ -->
 <section id="display" class="chapter">
   <h2>9. Display and face</h2>
   <p>
@@ -644,7 +662,7 @@ BOOT companion_face</code></pre>
     The photographs in <a href="#mechanical">Chapter 4.3</a> are the display subsystem's actual output. Eye shape, eyebrow angle, and mouth curve respond to the affect tag. The same display renders the quick-tile menu (<code>mute_mic</code>, <code>stop_talking</code>, <code>sleep</code>, <code>more</code>) when touched.
   </p>
 
-  <h3>9.5 Qt development GUIs</h3>
+  <h3 class="break-before">9.5 Qt development GUIs</h3>
   <p>Three desktop windows support development and calibration.</p>
   <table>
     <thead><tr><th>Window</th><th>File</th><th>Purpose</th></tr></thead>
@@ -667,13 +685,13 @@ BOOT companion_face</code></pre>
     </tbody>
   </table>
   <div class="figures-side-by-side">
-    <figure class="cad xsmall">
+    <figure class="cad lg">
       <img src="assets/images/gui_emotion_circumplex.png" alt="Russell's circumplex widget.">
-      <figcaption><span class="figno">Figure 17.</span> Valence / arousal circumplex widget. Eight anchors; live point with fading trail.</figcaption>
+      <figcaption><span class="figno">Figure 16.</span> Valence / arousal circumplex widget. Eight anchors; live point with fading trail.</figcaption>
     </figure>
-    <figure class="cad xsmall">
+    <figure class="cad lg">
       <img src="assets/images/gui_doa_plot.png" alt="DOA polar plot widget.">
-      <figcaption><span class="figno">Figure 18.</span> DOA polar plot. 0&deg; is front; positive right.</figcaption>
+      <figcaption><span class="figno">Figure 17.</span> DOA polar plot. 0&deg; is front; positive right.</figcaption>
     </figure>
   </div>
 </section>
@@ -700,7 +718,7 @@ BOOT companion_face</code></pre>
   </p>
 </section>
 
-<!-- ═══════════════════ 12. CONSTRAINTS ═══════════════════ -->
+<!-- ═══════════════════ 11. CONSTRAINTS ═══════════════════ -->
 <section id="constraints" class="chapter">
   <h2>11. Design under an 8 GB memory budget</h2>
   <p>
@@ -713,7 +731,7 @@ BOOT companion_face</code></pre>
   </p>
   <figure class="figure">
     <img src="assets/figures/vram_budget.svg" alt="Memory budget bar chart.">
-    <figcaption><span class="figno">Figure 19.</span> Memory footprint, approximately to scale. The top bar shows the integrated build; the hatched bar shows what was tested standalone but had to be dropped.</figcaption>
+    <figcaption><span class="figno">Figure 18.</span> Memory footprint, approximately to scale. The top bar shows the integrated build; the hatched bar shows what was tested standalone but had to be dropped.</figcaption>
   </figure>
 
   <h3>11.2 Two low-cost headroom wins</h3>

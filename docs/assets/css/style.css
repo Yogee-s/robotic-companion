@@ -833,7 +833,7 @@ figure.cad.hero img              { max-height: 420px; }
   font-size: 11.5px;
   color: var(--text-dim);
   line-height: 1.4;
-  text-align: left;
+  text-align: center;
 }
 
 /* Horizontal row for side-by-side small photos (related-work etc.) */
