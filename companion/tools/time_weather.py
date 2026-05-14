@@ -1,7 +1,6 @@
-"""Time + (placeholder) weather tool.
+"""Time tools — current time and date.
 
-Time is trivial, offline. Weather is offline-only by default; if you
-later wire up a network API key it can be returned too.
+Fully offline, no network required.
 """
 
 from __future__ import annotations
@@ -21,11 +20,3 @@ def what_time_is_it() -> str:
 def what_day_is_it() -> str:
     now = _dt.datetime.now()
     return now.strftime("Today is %A, %B %d %Y.")
-
-
-@tool("weather", "Describe the weather. Offline stub — returns a friendly note.")
-def weather(location: str = "here") -> str:
-    return (
-        f"I don't have a weather feed yet — I'm offline. "
-        f"Check your phone for {location}."
-    )

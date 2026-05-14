@@ -1,22 +1,37 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #  Robotic Companion — Central Configuration
 #
-#  Loaded once at startup via companion.core.config.load_config into
+#  Loaded once at startup via companion.core.config.load_config into the
 #  AppConfig dataclass. Every module reads its own section via the config
 #  object — no raw yaml access elsewhere.
 #
-#  To swap a major component (LLM, STT backend, display backend, voice),
-#  change exactly one key here.
+#  Layout:
+#    1. ACTIVE FEATURES   — everything the robot uses in production today
+#    2. DISABLED FEATURES  — fully implemented but turned off (8GB Orin
+#       memory constraints or pending bring-up). Each section explains
+#       what it does and what it takes to enable.
+#
+#  Per-device overrides go in config.local.yaml (gitignored).
+#  One-off env vars: COMPANION_<SECTION>_<KEY>=value
 # ═══════════════════════════════════════════════════════════════════════════
 
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │                         1. ACTIVE FEATURES                            │
+# │                                                                       │
+# │  Everything below is loaded and running in the current configuration. │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+# ── Application metadata ────────────────────────────────────────────────────
 app:
   name: Companion
   data_dir: data
   log_dir: logs
   log_level: INFO
   singlish: false
-  proactive_enabled: false                    # opt-in: robot initiates conversation
+  proactive_enabled: false                    # rule-based engagement (arrival greeting, mood check-in) — see companion/core/proactive.py
 
+# ── Hardware peripherals ────────────────────────────────────────────────────
 hardware:
   mic_name_hint: ReSpeaker
   speaker_name_hint: ""
@@ -24,14 +39,13 @@ hardware:
   screen_serial_port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
   screen_serial_baud: 115200
 
-# ── LLM ─────────────────────────────────────────────────────────────────────
+# ── LLM (core chat engine — llama-cpp-python + CUDA) ────────────────────────
 llm:
-  model: llama-3.2-1b                         # 8GB Orin: 1B model leaves ~4 GB VRAM for Parakeet + camera
-  model_paths:
-    llama-3.2-1b: models/Llama-3.2-1B-Instruct-Q4_K_M.gguf
-    gemma-4-e2b: models/gemma-4-e2b-it-q4_k_m.gguf
-    gemma-4-e4b: models/gemma-4-e4b-it-q4_k_m.gguf
-  mmproj_path: ""                             # leave empty until llama-cpp-python has Gemma3ChatHandler (see notes below)
+  model: gemma-4-e2b                           # latest lightweight multimodal LLM for Jetson
+  model_paths:                                 # switch model by changing 'model:' above
+    gemma-4-e2b: models/llm/gemma-4-e2b-it-q4_k_m.gguf
+    llama-3.2-1b: models/llm/Llama-3.2-1B-Instruct-Q4_K_M.gguf
+  mmproj_path: ""                             # leave empty until llama-cpp-python has Gemma3ChatHandler
   n_gpu_layers: -1                            # -1 = offload all layers to GPU
   context_length: 1024                        # reduced for 8GB Orin — halves KV cache
   max_tokens: 120
@@ -48,31 +62,10 @@ llm:
     [affect: affectionate], [affect: sad], or [affect: neutral]. The tag is
     a silent cue for the robot's face — never speak it aloud.
 
-# ── Vision-Language Model (scene awareness + "what is this?" answers) ───────
-vlm:
-  enabled: false                              # disabled on 8GB Orin — scene captioning is a value-add, not needed for basic conversation
-  model_path: models/moondream2-q4.gguf
-  mmproj_path: models/moondream2-mmproj-f16.gguf
-  scene_watch_hz: 0.5                         # background scene caption cadence (paused during active turns)
-  max_tokens: 80
-
-# ── FunctionGemma (tool-call router, 270M sidecar) ──────────────────────────
-function_gemma:
-  enabled: false                              # disabled on 8GB Orin — tool router is optional; re-enable once memory headroom is proven
-  model_path: models/function-gemma-270m-q4.gguf
-  confidence_threshold: 0.55
-
-# ── Persistent memory (Mem0 + local Chroma) ─────────────────────────────────
-memory:
-  enabled: false                              # disabled on 8GB Orin — Mem0/Chroma not needed for basic conversation
-  chroma_dir: data/chroma
-  top_k: 3
-  max_entries_per_speaker: 500
-
 # ── Speech-to-Text ──────────────────────────────────────────────────────────
 stt:
   backend: parakeet                           # parakeet | whisper
-  parakeet_model_dir: models/parakeet-tdt-0.6b-v3
+  parakeet_model_dir: models/stt
   whisper_model_size: base.en
   whisper_compute_type: int8
   streaming: true                             # Parakeet partial transcripts for LLM prefill
@@ -96,27 +89,6 @@ vad:
   min_speech_duration_ms: 250                 # was 400; loosened for bring-up so short phrases trigger turns
   speech_pad_ms: 30
 
-# ── Semantic End-of-Utterance (LiveKit EOU transformer) ─────────────────────
-eou:
-  enabled: false                              # disabled on 8GB Orin — VAD alone handles turn ends; re-enable once memory headroom is proven
-  model_path: models/eou/livekit-eou-v0.4.1-intl.onnx
-  extra_wait_ms: 600                          # if EOU says "not done", wait this long more
-  confidence_threshold: 0.55
-
-# ── Wake word ("Hey Buddy") ─────────────────────────────────────────────────
-wake_word:
-  enabled: false                              # enable via config; conversation.mode must be wake_word
-  phrase: "hey buddy"
-  model_path: models/wake_word/hey_buddy.tflite
-  sensitivity: 0.5
-
-# ── Speaker identification (TitaNet-L) ──────────────────────────────────────
-speaker_id:
-  enabled: false                              # optional — TitaNet not downloaded; re-enable after fetching the model
-  model_path: models/speaker_id/titanet-l.onnx
-  speakers_file: models/speakers.json
-  match_threshold: 0.65                       # cosine similarity
-
 # ── Audio I/O hardware ──────────────────────────────────────────────────────
 audio:
   sample_rate: 16000
@@ -134,10 +106,10 @@ respeaker:
   doa_enabled: true
   doa_offset_deg: -93.48   # set by Audio-tab calibration
 
-# ── Vision (camera + face + emotion) ────────────────────────────────────────
+# ── Vision (camera + YOLO-pose face detection) ──────────────────────────────
 vision:
   enabled: true
-  emotion_enabled: false                      # face tracking only for basic bring-up (re-enable after conversation is stable)
+  emotion_enabled: false                      # HSEmotion classifier — disabled for bring-up stability (re-enable after conversation is stable)
   sensor_id: 0
   width: 640                                  # 8GB Orin — 480p is plenty for face tracking; halves NVMM + CPU cost
   height: 480
@@ -152,7 +124,7 @@ vision:
   smoothing: 0.7
   staleness_fade_seconds: 3.0
 
-# ── Display (touchscreen face + tap menu) ───────────────────────────────────
+# ── Display (ESP32 touchscreen face + tap menu) ─────────────────────────────
 display:
   backend: esp32_serial                       # pygame (HDMI/dev) | esp32_serial (touchscreen)
   width: 320                                  # landscape — matches firmware rotation=1
@@ -164,7 +136,7 @@ display:
 
 # ── Conversation behaviour ──────────────────────────────────────────────────
 conversation:
-  mode: ptt                                   # continuous | ptt | wake_word — VAD disabled, spacebar hold drives turns
+  mode: ptt                                   # continuous | ptt | wake_word — PTT is stable; continuous needs engagement gates tuned
   max_history: 6                              # exchanges to keep in context
   verbosity: normal                           # brief | normal | detailed
   log_conversations: true
@@ -235,7 +207,7 @@ runtime:
   health_tick_hz: 1.0                         # HealthMonitor watchdog cadence
   telemetry_ring_size: 100                    # per-turn JSONL history kept in memory for p50/p95
 
-# ── Desktop GUI ─────────────────────────────────────────────────────────────
+# ── Desktop GUI (debug only) ───────────────────────────────────────────────
 gui:
   window_width: 1280
   window_height: 820
@@ -245,3 +217,40 @@ gui:
   show_doa_visualization: true
   doa_update_interval_ms: 100
   system_monitor_interval_ms: 2000
+
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │                       2. DISABLED FEATURES                            │
+# │                                                                       │
+# │  Everything below is FULLY IMPLEMENTED in the codebase but turned     │
+# │  off for 8GB Jetson Orin Nano memory constraints. The models are      │
+# │  downloaded by scripts/download_models.py so these can be enabled     │
+# │  for testing by setting enabled: true.                                │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+# ── VLM — Vision-Language Model (scene awareness + visual Q&A) ──────────────
+# What it does: Background scene captioning via SceneWatcher + user-directed
+#   "what do you see?" queries. Uses a standalone Moondream-2 model to
+#   caption camera frames.
+# Why it's off: The Moondream model needs ~3 GB VRAM which doesn't fit on
+#   8GB Orin alongside the chat LLM.
+# To enable: Set vlm.enabled: true. Models are in models/vlm/.
+vlm:
+  enabled: false
+  model_path: models/vlm/moondream2-q4.gguf
+  mmproj_path: models/vlm/moondream2-mmproj-f16.gguf
+  scene_watch_hz: 0.5                         # background scene caption cadence (paused during active turns)
+  max_tokens: 80
+
+# ── Persistent memory — Mem0 + local ChromaDB ──────────────────────────────
+# What it does: Stores per-speaker facts across sessions (e.g. "user likes
+#   chai"). Retrieved at the start of each turn and injected into the LLM
+#   prompt as context.
+# Why it's off: Mem0 + ChromaDB add background CPU/memory load. Not needed
+#   for basic bring-up.
+# To enable: Set enabled: true. Requires `pip install mem0ai chromadb`.
+memory:
+  enabled: false
+  chroma_dir: data/chroma
+  top_k: 3
+  max_entries_per_speaker: 500

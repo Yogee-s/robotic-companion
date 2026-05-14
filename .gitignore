@@ -1,18 +1,31 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
-models/
 *.egg-info/
+.pytest_cache/
+
+# Virtual environments
 .venv/
 venv/
 companion_env/
 .env
+
+# Models (large, downloaded via scripts/download_models.py)
+models/
+
+# Runtime data
+logs/
+data/
+
+# Media generated at runtime
 *.wav
 *.mp3
-logs/
+
+# Jupyter
 .ipynb_checkpoints/
 
-# Layered config — local overrides and secrets never hit git.
+# Layered config — local overrides and secrets never hit git
 config.local.yaml
 config.secrets.yaml
 
@@ -20,10 +33,7 @@ config.secrets.yaml
 .claude/
 .vscode/
 .idea/
+CLAUDE.md
 
 # Firmware build artefacts
 firmware/**/.pio/
-
-
-/assets
-CLAUDE.md

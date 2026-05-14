@@ -1,8 +1,8 @@
-"""Runnable face-tracking demo.
+"""Runnable face-tracking demo (dev tool — not part of production).
 
 Callable two ways:
   - `run(...)` from Python / Jupyter
-  - `python -m companion.vision.face_track_demo [--args ...]` from the shell
+  - `python scripts/face_track_demo.py [--args ...]` from the shell
 
 Auto-detects whether it's running inside a Jupyter kernel and renders the
 annotated camera feed accordingly (inline Image via IPython.display, or a

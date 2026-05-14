@@ -26,7 +26,7 @@ class TTSError(CompanionError):
 
 
 class ToolError(CompanionError):
-    """Tool invocation failure (timer, weather, etc.)."""
+    """Tool invocation failure (timer, volume, reminders, etc.)."""
 
 
 class ToolNetworkError(ToolError):

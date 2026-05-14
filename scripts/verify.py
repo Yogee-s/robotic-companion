@@ -75,13 +75,11 @@ def main() -> int:
     print("\n  Models")
     for rel in (
         cfg.llm.model_paths[cfg.llm.model],
-        cfg.vlm.model_path,
         cfg.stt.parakeet_model_dir + "/encoder.onnx",
-        cfg.vision.face_model_path,
+        "models/tts/en_US-hfc_female-medium.onnx",
+        "models/vad/silero_vad.onnx",
+        cfg.vision.yolo_pose_model_path,
         cfg.vision.emotion_model_path,
-        cfg.eou.model_path,
-        cfg.speaker_id.model_path,
-        "models/kokoro/kokoro-v1.0.fp16.onnx",
     ):
         abs_path = cfg.abspath(rel)
         row("ok" if os.path.exists(abs_path) else "warn", rel,

@@ -42,8 +42,8 @@ class HardwareConfig:
 class LLMConfig:
     model: str = "gemma-4-e2b"
     model_paths: dict[str, str] = field(default_factory=lambda: {
-        "gemma-4-e2b": "models/gemma-4-e2b-it-q4_k_m.gguf",
-        "gemma-4-e4b": "models/gemma-4-e4b-it-q4_k_m.gguf",
+        "gemma-4-e2b": "models/llm/gemma-4-e2b-it-q4_k_m.gguf",
+        "llama-3.2-1b": "models/llm/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
     })
     n_gpu_layers: int = -1
     context_length: int = 2048
@@ -66,8 +66,8 @@ class LLMConfig:
 @dataclass
 class VLMConfig:
     enabled: bool = True
-    model_path: str = "models/moondream2-q4.gguf"
-    mmproj_path: str = "models/moondream2-mmproj-f16.gguf"
+    model_path: str = "models/vlm/moondream2-q4.gguf"
+    mmproj_path: str = "models/vlm/moondream2-mmproj-f16.gguf"
     scene_watch_hz: float = 1.0
     max_tokens: int = 80
     # Number of layers to offload to GPU. Jetson Orin Nano's 8 GB shared
@@ -95,7 +95,7 @@ class MemoryConfig:
 @dataclass
 class STTConfig:
     backend: str = "parakeet"                  # parakeet | whisper
-    parakeet_model_dir: str = "models/parakeet-tdt-0.6b-v3"
+    parakeet_model_dir: str = "models/stt"
     whisper_model_size: str = "base.en"
     whisper_compute_type: str = "int8"
     streaming: bool = True

@@ -129,7 +129,6 @@ class ConversationManager:
         scene_watcher: Optional[SceneWatcher] = None,
         memory: Optional[MemoryStore] = None,
         speaker_id: Optional[SpeakerID] = None,
-        vlm=None,                          # kept for backward compat — unused
         function_gemma: Optional[FunctionGemma] = None,
         event_bus=None,
         respeaker=None,

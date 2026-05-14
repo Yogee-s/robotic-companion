@@ -84,7 +84,7 @@ class TextToSpeech:
             if self._loud_fallback:
                 logger.error(
                     "Kokoro TTS failed to load — falling back to Piper. "
-                    "Check models/kokoro/ and `pip install kokoro-onnx`."
+                    "Check models/tts/ and `pip install kokoro-onnx`."
                 )
             self._has_piper = self._load_piper()
             if self._has_piper:
@@ -123,7 +123,7 @@ class TextToSpeech:
         try:
             from kokoro_onnx import Kokoro
 
-            kokoro_dir = os.path.join(self._models_dir, "kokoro")
+            kokoro_dir = os.path.join(self._models_dir, "tts")
             voices_path = os.path.join(kokoro_dir, "voices-v1.0.bin")
 
             # Prefer FP16 (faster on ARM), fall back to FP32
@@ -200,7 +200,7 @@ class TextToSpeech:
 
     def _load_piper(self) -> bool:
         """Load Piper TTS — fast voice."""
-        piper_dir = os.path.join(self._models_dir, "piper")
+        piper_dir = os.path.join(self._models_dir, "tts")
         model_path = os.path.join(piper_dir, f"{self._piper_model}.onnx")
         config_path = os.path.join(piper_dir, f"{self._piper_model}.onnx.json")
 
@@ -392,7 +392,7 @@ class TextToSpeech:
         return None
 
     def _synthesize_piper_cli(self, text: str) -> Optional[bytes]:
-        piper_dir = os.path.join(self._models_dir, "piper")
+        piper_dir = os.path.join(self._models_dir, "tts")
         model_path = os.path.join(piper_dir, f"{self._piper_model}.onnx")
         model_arg = model_path if os.path.exists(model_path) else self._piper_model
         rate_args = []

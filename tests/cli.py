@@ -5,7 +5,6 @@ Usage:
     python3 -m tests.cli audio        # 10 s mic capture + RMS/DOA/VAD dump
     python3 -m tests.cli stt          # record 5 s and transcribe
     python3 -m tests.cli llm "hi"     # one-shot LLM generation
-    python3 -m tests.cli vlm "what?"  # caption current camera frame
     python3 -m tests.cli tts "hello"  # synthesise + play a sentence
     python3 -m tests.cli vision       # 10 s emotion pipeline benchmark
     python3 -m tests.cli mem search "job interview"
@@ -171,39 +170,7 @@ def cmd_llm(args) -> int:
     return 0
 
 
-def cmd_vlm(args) -> int:
-    cfg = _load_cfg()
-    from companion.vision.camera import CSICamera
-    from companion.vision.vlm import MoondreamVLM
 
-    cam = CSICamera(
-        sensor_id=cfg.vision.sensor_id,
-        width=cfg.vision.width,
-        height=cfg.vision.height,
-        fps=cfg.vision.fps,
-        flip_method=cfg.vision.flip_method,
-        use_csi=cfg.vision.use_csi,
-    )
-    vlm = MoondreamVLM(
-        cfg.abspath(cfg.vlm.model_path), cfg.abspath(cfg.vlm.mmproj_path),
-        enabled=cfg.vlm.enabled, max_tokens=cfg.vlm.max_tokens
-    )
-    if not vlm.available:
-        print("VLM unavailable."); return 2
-    frame = None
-    for _ in range(40):
-        frame = cam.read()
-        if frame is not None:
-            break
-        time.sleep(0.1)
-    cam.close()
-    if frame is None:
-        print("No frame captured."); return 2
-    question = " ".join(args.question) or "What do you see?"
-    t0 = time.time()
-    answer = vlm.answer(frame, question) if question != "caption" else vlm.caption(frame)
-    print(f"[{time.time() - t0:.2f}s] {answer}")
-    return 0
 
 
 def cmd_tts(args) -> int:
@@ -390,7 +357,7 @@ def main() -> int:
     a = sub.add_parser("audio"); a.add_argument("--seconds", type=float, default=10.0); a.set_defaults(fn=cmd_audio)
     sub.add_parser("stt").set_defaults(fn=cmd_stt)
     a = sub.add_parser("llm"); a.add_argument("prompt", nargs="*"); a.set_defaults(fn=cmd_llm)
-    a = sub.add_parser("vlm"); a.add_argument("question", nargs="*"); a.set_defaults(fn=cmd_vlm)
+
     a = sub.add_parser("tts"); a.add_argument("text", nargs="*"); a.set_defaults(fn=cmd_tts)
     a = sub.add_parser("vision"); a.add_argument("--seconds", type=float, default=10.0); a.set_defaults(fn=cmd_vision)
     a = sub.add_parser("mem")

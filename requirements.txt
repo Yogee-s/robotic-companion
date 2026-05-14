@@ -13,6 +13,8 @@
 #  installed by `scripts/setup.sh` using Jetson-specific wheels, NOT from PyPI.
 # ═══════════════════════════════════════════════════════════════════════════
 
+--extra-index-url https://pypi.jetson-ai-lab.io/jp6/cu126
+
 # ── Core ──
 PyYAML>=6.0
 numpy>=1.24,<2                     # torch Jetson wheel requires numpy <2

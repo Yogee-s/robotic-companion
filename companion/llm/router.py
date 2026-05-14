@@ -6,9 +6,9 @@ Routing order:
      execute it and short-circuit to spoken result.
   2. **VQA** — if the utterance looks vision-dependent ("what is this?",
      "what do you see?", "read this label"), hand the turn + current
-     camera frame to the VLM (Moondream) and stream its answer to TTS.
-  3. **Chat** — otherwise the main conversation LLM (Gemma 4 E2B) handles
-     the reply with emotion/scene/memory context injected.
+     camera frame to the LLM (multimodal mode) and stream its answer to TTS.
+  3. **Chat** — otherwise the main conversation LLM handles the reply
+     with emotion/scene/memory context injected.
 
 Each route returns the same shape so the conversation manager can pipe
 the reply into TTS uniformly.

@@ -1,4 +1,4 @@
-"""Vision subsystem — camera, face detection, emotion, VLM scene understanding."""
+"""Vision subsystem — camera, face detection, emotion classification, and face tracking."""
 
 from companion.vision.camera import CSICamera
 from companion.vision.emotion_classifier import (

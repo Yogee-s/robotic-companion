@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """Download every model the companion needs in one idempotent script.
 
-Skips files that already exist and match expected sizes. Total first-time
-download is ~8-10 GB. Safe to re-run — it only fetches missing pieces.
+Skips files that already exist and match expected sizes. Safe to re-run —
+it only fetches missing pieces.
 
-Groups:
-  - LLM:          Gemma 4 E2B + E4B Q4_K_M (llama.cpp GGUF)
-  - VLM:          Moondream-2 Q4 GGUF + mmproj
-  - Tool router:  FunctionGemma-270M Q4 GGUF
-  - STT:          Parakeet-TDT-0.6B-v3 ONNX export (+ Whisper base.en cached via faster-whisper)
-  - TTS:          Kokoro-82M ONNX + voices, Piper hfc_female-medium (fallback)
-  - Vision:       YuNet face ONNX + HSEmotion ENet-B0 ONNX
-  - VAD / EOU:    Silero v5 (bundled with silero-vad pip) + LiveKit EOU-v0.4.1-intl ONNX
-  - Speaker ID:   NeMo TitaNet-L ONNX
-  - Wake word:    openWakeWord custom "hey_buddy" (user-trained) — a placeholder is copied if missing
+Active models (always downloaded):
+  - LLM:    Gemma 4 E2B + Llama 3.2 1B Q4_K_M (llama.cpp GGUF)
+  - STT:    Parakeet-TDT-0.6B-v3 ONNX export (int8)
+  - TTS:    Piper hfc_female-medium
+  - Vision: YuNet face ONNX + HSEmotion ENet-B0 ONNX
+
+Disabled but downloadable (for testing):
+  - VLM:    Moondream-2 Q4 GGUF + mmproj (disabled in config.yaml)
 """
 
 from __future__ import annotations
@@ -72,35 +70,20 @@ def _hf_download(repo: str, path: str, dest: Path) -> bool:
 
 
 def llm() -> None:
-    print("── LLM (Gemma 4) ──")
-    # google/gemma-4-*-GGUF is gated; unsloth hosts ungated re-quantizations.
-    # Gemma 4 ships as E2B / E4B (effective-param variants).
+    print("── LLM (Gemma 4 E2B + Llama 3.2 1B) ──")
+    target = _MODELS / "llm"
+    target.mkdir(parents=True, exist_ok=True)
+    # Gemma 4 E2B — latest lightweight multimodal model for embedded (Jetson)
     _hf_download(
         "unsloth/gemma-4-E2B-it-GGUF",
         "gemma-4-E2B-it-Q4_K_M.gguf",
-        _MODELS / "gemma-4-e2b-it-q4_k_m.gguf",
+        target / "gemma-4-e2b-it-q4_k_m.gguf",
     )
+    # Llama 3.2 1B — smaller fallback, proven stable on 8 GB Orin
     _hf_download(
-        "unsloth/gemma-4-E4B-it-GGUF",
-        "gemma-4-E4B-it-Q4_K_M.gguf",
-        _MODELS / "gemma-4-e4b-it-q4_k_m.gguf",
-    )
-
-
-def vlm() -> None:
-    print("── VLM (Moondream-2) ──")
-    # llama.cpp-official conversion; ships F16 only (no Q4 text model).
-    repo = "ggml-org/moondream2-20250414-GGUF"
-    _hf_download(repo, "moondream2-text-model-f16_ct-vicuna.gguf", _MODELS / "moondream2-q4.gguf")
-    _hf_download(repo, "moondream2-mmproj-f16-20250414.gguf", _MODELS / "moondream2-mmproj-f16.gguf")
-
-
-def function_gemma() -> None:
-    print("── FunctionGemma-270M ──")
-    _hf_download(
-        "unsloth/functiongemma-270m-it-GGUF",
-        "functiongemma-270m-it-Q4_K_M.gguf",
-        _MODELS / "function-gemma-270m-q4.gguf",
+        "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        target / "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
     )
 
 
@@ -109,7 +92,7 @@ def stt() -> None:
     # nvidia/parakeet-tdt-0.6b-v3 ships only .nemo; sherpa-onnx provides the
     # int8 ONNX export. We rename to plain foo.onnx locally to match
     # companion/audio/stt.py's expected layout.
-    target = _MODELS / "parakeet-tdt-0.6b-v3"
+    target = _MODELS / "stt"
     target.mkdir(parents=True, exist_ok=True)
     repo = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
     for src, dst in (
@@ -122,22 +105,18 @@ def stt() -> None:
 
 
 def tts() -> None:
-    print("── TTS (Kokoro + Piper) ──")
-    k = _MODELS / "kokoro"
-    k.mkdir(parents=True, exist_ok=True)
-    _hf_download("hexgrad/Kokoro-82M", "kokoro-v1.0.fp16.onnx", k / "kokoro-v1.0.fp16.onnx")
-    _hf_download("hexgrad/Kokoro-82M", "voices-v1.0.bin", k / "voices-v1.0.bin")
-    p = _MODELS / "piper"
-    p.mkdir(parents=True, exist_ok=True)
+    print("── TTS (Piper) ──")
+    t = _MODELS / "tts"
+    t.mkdir(parents=True, exist_ok=True)
     _hf_download(
         "rhasspy/piper-voices",
         "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
-        p / "en_US-hfc_female-medium.onnx",
+        t / "en_US-hfc_female-medium.onnx",
     )
     _hf_download(
         "rhasspy/piper-voices",
         "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json",
-        p / "en_US-hfc_female-medium.onnx.json",
+        t / "en_US-hfc_female-medium.onnx.json",
     )
 
 
@@ -155,41 +134,13 @@ def vision() -> None:
     )
 
 
-def eou() -> None:
-    print("── Semantic end-of-utterance (LiveKit turn-detector, multilingual) ──")
-    target_dir = _MODELS / "eou"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    repo = "livekit/turn-detector"
-    _hf_download(repo, "model_quantized.onnx", target_dir / "livekit-eou-v0.4.1-intl.onnx")
-    for extra in ("tokenizer.json", "config.json", "ort_config.json"):
-        _hf_download(repo, extra, target_dir / extra)
-
-
-def speaker_id() -> None:
-    print("── Speaker ID (TitaNet-L) ──")
-    target = _MODELS / "speaker_id" / "titanet-l.onnx"
-    if target.exists():
-        print(f"  ✓ {target.name} (already present)")
-        return
-    print(
-        "  (no public ONNX export exists for nvidia/speakerverification_en_titanet_large —\n"
-        "   ships as .nemo only. Export manually with NeMo:\n"
-        "     from nemo.collections.asr.models import EncDecSpeakerLabelModel\n"
-        "     m = EncDecSpeakerLabelModel.from_pretrained('nvidia/speakerverification_en_titanet_large')\n"
-        f"     m.export('{target}')\n"
-        "   then re-run this script.)"
-    )
-
-
-def wake_word() -> None:
-    print("── Wake word placeholder ──")
-    target = _MODELS / "wake_word" / "hey_buddy.tflite"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if not target.exists():
-        print(
-            "  (no 'hey buddy' model — train one via openwakeword's "
-            "synthetic-data pipeline and drop it here to activate)"
-        )
+def vlm() -> None:
+    print("── VLM (Moondream-2) — disabled by default, for testing ──")
+    v = _MODELS / "vlm"
+    v.mkdir(parents=True, exist_ok=True)
+    repo = "ggml-org/moondream2-20250414-GGUF"
+    _hf_download(repo, "moondream2-text-model-f16_ct-vicuna.gguf", v / "moondream2-q4.gguf")
+    _hf_download(repo, "moondream2-mmproj-f16-20250414.gguf", v / "moondream2-mmproj-f16.gguf")
 
 
 def check_espeak() -> None:
@@ -203,16 +154,17 @@ def check_espeak() -> None:
 def main() -> int:
     _MODELS.mkdir(exist_ok=True)
     print(f"Downloading models into {_MODELS}\n")
+
+    print("=== Active models ===")
     llm()
-    vlm()
-    function_gemma()
     stt()
     tts()
     vision()
-    eou()
-    speaker_id()
-    wake_word()
     check_espeak()
+
+    print("\n=== Disabled models (for testing) ===")
+    vlm()
+
     print("\nDone. Re-run this script any time to pick up missing files.")
     return 0
 

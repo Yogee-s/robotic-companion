@@ -2,56 +2,48 @@
 
 A fully-offline multimodal AI companion robot for the Jetson Orin Nano 8 GB.
 
-It hears you, sees you, remembers you, answers visually ("what is this?"),
-runs tools (timers, volume, reminders), and animates a face on a small
-touchscreen that the ESP32 module renders locally. 100 % of inference
-happens on-device — no cloud, no API keys.
+It hears you, sees you, and animates a face on a small touchscreen that
+the ESP32 module renders locally. 100 % of inference happens on-device —
+no cloud, no API keys.
 
-## Features
+## Feature Status
 
-- **Natural continuous conversation** — no wake word. The robot is
-  always listening, but a turn only triggers when a face is visible, the
-  utterance was long enough (≥400 ms voiced), and DOA lines up with the
-  face. TV across the room is ignored; you get the robot's attention by
-  standing in front of it and speaking.
-- **Fast reply** — streaming STT → LLM KV-cache prefill → short-opener
-  prompt → streaming TTS → persistent aplay. Target end-of-speech to
-  first audio: ≤ 800 ms.
-- **Interrupt anywhere** — speak while the robot is *thinking* or
-  *speaking*; the in-flight turn cancels within ~300 ms. False-positive
-  barge-in detection (noise-floor + Silero VAD + envelope AEC-lite)
-  rejects door slams and the robot's own echo.
-- **Embodied tracking** — two ST3215 servos in a differential bevel
-  gearbox drive a 2-DOF head that smoothly tracks your face. Gain drops
-  during `THINKING` so the head holds still while the LLM is composing.
-- **Emotion-aware** — YOLO26n-pose + HSEmotion 8-class classifier
-  produce valence/arousal; every turn, the current emotion is injected
-  into the LLM prompt.
-- **Affect-tagged expressions** — LLM replies end with a terminal tag
-  `[affect: happy | curious | confused | surprised | affectionate | sad]`
-  that fires a 1.2 s ornament on the ESP32 face.
-- **Visemes** — TTS PCM envelope drives the mouth during speech.
-- **Unified multimodal model** — the same Gemma-4 that handles chat also
-  answers visual questions ("what is this?") and captions the scene in
-  the background. Moondream was consolidated away.
-- **Scene awareness** — background captioning at 0.5 Hz, paused
-  automatically during active turns via `GPUArbiter`.
-- **Persistent memory** — Mem0 + Chroma, per-speaker.
-- **Speaker ID** — TitaNet-L embeddings.
-- **Tool calling** — FunctionGemma 270 M sidecar routes "set a timer"
-  and friends to callables.
-- **Touchscreen face** — Diymore 2.8" display over ESP32 serial; four
-  working tiles (Mute mic · Stop · Sleep · More → Volume / Restart).
-- **Observable** — every turn writes a JSONL trace with phase timestamps
-  (`logs/traces_<date>.jsonl`).
-- **Watchdog + graceful degradation** — `HealthMonitor` detects starved
-  mic / frozen camera / over-temp motor; `Coordinator` announces via TTS
-  and falls back where possible.
-- **Readiness gate** — `python main.py` fails loudly on a missing model
-  file rather than booting half-dead.
-- **Layered config** — `config.yaml` ← `config.local.yaml` (gitignored)
-  ← `COMPANION_<SECTION>_<KEY>` env vars. Per-device overrides without
-  touching the checked-in defaults.
+> **Current runtime profile: Push-to-Talk chatbot + face tracking.**
+> The codebase includes many additional features that are fully implemented
+> but disabled on the 8 GB Orin to conserve VRAM. See `config.yaml` for
+> the "Disabled Features" section at the bottom.
+
+### ✅ Active (running in production)
+
+| Feature | What it does |
+|---|---|
+| **LLM chat** | Llama 3.2 1B via llama-cpp-python, CUDA, streaming, KV-cache prefill |
+| **STT (Parakeet)** | NVIDIA Parakeet 0.6B, streaming partial transcripts |
+| **TTS (Piper)** | Lightweight, fast TTS. Kokoro also available via config swap |
+| **Push-to-Talk** | Spacebar-driven turns; VAD detects speech-end |
+| **Barge-in detection** | Adaptive noise floor + envelope AEC-lite + sustained-speech gating |
+| **Vision + face detection** | CSI camera → YOLO26n-pose face detection at ~30 fps |
+| **Face tracking** | Proportional 2-DOF head control via ST3215 servos |
+| **ESP32 face display** | Animated face on Diymore 2.8" touchscreen over serial |
+| **Affect-tagged expressions** | LLM `[affect: X]` tags fire 1.2 s expression overlays on the face |
+| **Lip sync (envelope)** | Audio amplitude → viseme events → mouth animation |
+| **Touchscreen UI** | Mute / Stop / Sleep / Volume / Restart tiles |
+| **ReSpeaker DOA** | Direction-of-arrival + LED ring control |
+| **BehaviorEngine** | 20 Hz motor + face-display coordinator |
+| **Health watchdog** | 1 Hz checks: mic starvation, frozen camera, motor over-temp |
+| **Telemetry** | Per-turn JSONL traces with phase timestamps |
+| **Readiness gate** | Audits model files + serial ports at startup |
+| **Layered config** | `config.yaml` ← `config.local.yaml` ← `COMPANION_*` env vars |
+
+### 🔶 Disabled (fully implemented, off for 8 GB Orin constraints)
+
+These features can be enabled by setting `enabled: true` in `config.yaml`.
+Models are downloaded by `scripts/download_models.py`.
+
+| Feature | Config toggle | Why it's off |
+|---|---|---|
+| **VLM / scene captioning** | `vlm.enabled` | Moondream needs ~3 GB VRAM — doesn't fit alongside the chat LLM |
+| **Persistent memory** | `memory.enabled` | Mem0+Chroma add background load; needs `pip install mem0ai chromadb` |
 
 ## Hardware
 
@@ -73,7 +65,7 @@ bash scripts/setup.sh
 
 source companion_env/bin/activate
 
-# 2. Download every model (LLM, VLM, STT, TTS, vision, EOU, speaker-ID)
+# 2. Download every model (LLM, STT, TTS, vision)
 python3 scripts/download_models.py
 
 # 3. Flash the ESP32 face firmware (with the screen plugged in)
@@ -86,9 +78,10 @@ python3 scripts/preflight.py
 python3 main.py
 ```
 
-**No button to press.** Walk into view of the camera and speak
-naturally. The robot will engage when it sees a face and hears enough
-voiced speech. To mute / stop / sleep, tap the touchscreen.
+**Current mode is Push-to-Talk.** Hold spacebar to speak; release to
+let the robot reply. To switch to continuous mode, change
+`conversation.mode: continuous` in config.yaml. Tap the touchscreen to
+mute / stop / sleep.
 
 ## Everyday commands
 
@@ -97,7 +90,6 @@ python3 -m tests.cli env                 # sanity check
 python3 -m tests.cli audio               # live mic / DOA / VAD in the terminal
 python3 -m tests.cli stt                 # 5 s record + transcribe
 python3 -m tests.cli llm "hello"         # one-shot LLM
-python3 -m tests.cli vlm "what do you see?"
 python3 -m tests.cli tts "hi there"      # synthesise + play
 python3 -m tests.cli vision --seconds 10 # emotion pipeline benchmark
 python3 -m tests.cli face happy          # drive the face to a preset
@@ -106,7 +98,8 @@ python3 -m tests.cli mem search "interview"
 python3 -m tests.cli tools "set a timer for 5 minutes"
 python3 -m tests.cli all                 # run every subsystem sanity check
 
-python3 -m tests.debug_gui               # one window, 5 tabs — Audio/LLM/TTS/Vision/Face
+python3 -m tests.debug_gui               # tabbed debug window
+python3 scripts/face_track_demo.py --sim  # standalone face-tracking demo
 ```
 
 ## Swapping models
@@ -131,28 +124,38 @@ Restart the app; that's it.
 
 ```
 robotic-companion/
-├── companion/
-│   ├── core/          config + event_bus + events + errors + gpu_arbiter
-│   │                  + health + onnx_runtime + readiness + telemetry + logging + proactive
-│   ├── audio/         io + vad + stt (Parakeet+Whisper) + tts (Kokoro+Piper)
-│   │                  + eou + speaker_id + respeaker + lip_sync + barge_in
-│   ├── vision/        camera + face_detector + emotion_classifier
-│   │                  + pipeline + scene_watcher (+ legacy vlm.py for the debug GUI only)
-│   ├── llm/           engine (Gemma 4 multimodal) + prompt + memory + function_gemma + router
-│   ├── tools/         registry + timer + volume + remind_me + stopwatch + time_weather
-│   ├── behavior/      engine (20 Hz motor + face-display tick) + tracking (per-state gain)
-│   ├── conversation/  manager (Turn lifecycle + engagement gates + streaming) + coordinator
-│   │                  + states + turn
-│   ├── display/       renderer + face-state + lip-sync + pygame & esp32_serial backends
-│   └── ui/            theme + shared widgets + main_window
-├── tests/             cli.py (terminal) + debug_gui.py (tabbed)
-├── scripts/           setup.sh + download_models.py + flash_firmware.sh + verify.py
-├── firmware/companion_face/  ESP32 Arduino/PlatformIO project
-├── models/            (downloaded)
-├── data/chroma/       (Mem0 vector DB)
-├── logs/              (JSONL per day)
-├── config.yaml        all knobs
-├── main.py
+├── companion/              # production source code
+│   ├── core/               config, event_bus, errors, gpu_arbiter, health,
+│   │                       onnx_runtime, readiness, telemetry, logging
+│   ├── audio/              io, vad, stt (Parakeet+Whisper), tts (Piper+Kokoro),
+│   │                       respeaker, barge_in
+│   ├── vision/             camera, face_detector, emotion_classifier,
+│   │                       pipeline, scene_watcher, face_tracker
+│   ├── llm/                engine (llama-cpp), prompt, memory, router
+│   ├── tools/              registry + timer, volume, remind_me, stopwatch, time
+│   ├── behavior/           engine (20 Hz motor + face-display tick) + tracking
+│   ├── conversation/       manager, coordinator, states, turn
+│   ├── display/            renderer, face-state, lip-sync, pygame & esp32_serial
+│   ├── motor/              bus, kinematics, controller, calibration UI
+│   └── ui/                 theme, shared widgets, main_window
+├── tests/                  cli.py (terminal) + debug_gui.py (tabbed GUI)
+├── scripts/                setup.sh, download_models.py, flash_firmware.sh,
+│                           verify.py, preflight.py, face_track_demo.py
+├── docs/                   technical report (HTML+PDF), executive summary, assets
+├── deploy/                 systemd service + udev rules
+├── firmware/companion_face/ ESP32 Arduino/PlatformIO face firmware
+├── models/                 (downloaded by scripts/download_models.py)
+│   ├── llm/                Llama 3.2 1B GGUF
+│   ├── stt/                Parakeet TDT 0.6B ONNX
+│   ├── tts/                Piper voice ONNX
+│   ├── vad/                Silero VAD ONNX
+│   ├── vision/             YOLO + HSEmotion + YuNet ONNX
+│   └── vlm/                Moondream-2 GGUF (disabled, for testing)
+├── data/chroma/            Mem0 vector DB (runtime, gitignored)
+├── logs/                   JSONL per day (runtime, gitignored)
+├── config.yaml             all knobs — active features top, disabled features bottom
+├── setup_and_test.ipynb    interactive setup + sanity checks
+├── main.py                 production entry point
 └── README.md
 ```
 
@@ -161,6 +164,10 @@ robotic-companion/
 Every subsystem reads its own dataclass section of [config.yaml](config.yaml).
 See [companion/core/config.py](companion/core/config.py) for the full schema
 — field defaults live there.
+
+`config.yaml` is organized into two sections:
+1. **Active Features** — everything running in production
+2. **Disabled Features** — fully implemented but off for 8 GB Orin constraints
 
 ## Firmware
 
@@ -174,17 +181,17 @@ Flash with `bash scripts/flash_firmware.sh`.
 
 ```
 Mic ──▶ VAD ──▶ (on speech end) ──▶ STT ───────▶ EOU ─▶ Router ─┐
-                                                                 │
+                                                                  │
       ┌─── chat ◀──── Memory + Emotion + Scene hint injection ◀──┤
       │                                                           │
-      ├─── VQA  ◀──── Moondream(current frame, question) ◀────────┤
+      ├─── VQA  ◀──── LLM multimodal (current frame, question) ◀─┤
       │                                                           │
       └─── tool ◀──── FunctionGemma(user turn) ──▶ Tool.invoke ◀──┘
       │
       ▼                         (tokens stream as they arrive)
    LLM ──tokens──▶ pysbd sentence splitter ──▶ TTS ──▶ Speaker
                                                 ▼
-                                              Rhubarb → visemes
+                                        envelope → visemes
                                                 ▼
                                      Display (face mouth animates)
                                                 ▼
@@ -205,5 +212,5 @@ Mic ──▶ VAD ──▶ (on speech end) ──▶ STT ───────�
 ## Credits
 
 Built on top of llama.cpp, kokoro-onnx, Piper, Silero VAD, openWakeWord,
-HSEmotion, YuNet, Moondream 2, NVIDIA Parakeet, NeMo TitaNet, LiveKit's
-EOU, Mem0, Chroma, TFT_eSPI, and Rhubarb Lip Sync.
+HSEmotion, NVIDIA Parakeet, NeMo TitaNet, LiveKit's EOU, Mem0, Chroma,
+and TFT_eSPI.
