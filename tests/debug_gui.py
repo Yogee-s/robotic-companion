@@ -2189,7 +2189,6 @@ _TAB_ORDER = (
     ("STT",           STTTab),
     # Reasoning
     ("LLM",           LLMTab),
-    ("Tools",         ToolsTab),
     ("Memory",        MemoryTab),
     # Output
     ("TTS",           TTSTab),

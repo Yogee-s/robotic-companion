@@ -24,6 +24,7 @@ PyAudio>=0.2.13
 
 # ── Speech-to-Text ──
 faster-whisper>=1.0.0              # CPU fallback for STT; CUDA via ctranslate2
+librosa>=0.10.0                    # required for parakeet log-mel features
 
 # ── Text-to-Speech ──
 # kokoro-onnx is installed by scripts/setup.sh with --no-deps.
@@ -67,7 +68,7 @@ onnxruntime-gpu>=1.16              # CUDA EP for HSEmotion + EOU + TitaNet
 # ── Head tracking motors (ST3215 + simulator + 3D preview) ──
 feetech-servo-sdk>=1.0.0           # Feetech ST/SCS protocol SDK (imports as `scservo_sdk`)
 PyOpenGL>=3.1.0                    # required by pyqtgraph.opengl for 3D head preview
-# PyOpenGL-accelerate is optional — adds a compiled fast-path if wheel is available
+PyOpenGL-accelerate>=3.1.0         # optional — adds a compiled fast-path if wheel is available
 
 # ── System monitoring ──
 psutil>=5.9
