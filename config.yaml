@@ -74,12 +74,16 @@ stt:
 
 # ── Text-to-Speech ──────────────────────────────────────────────────────────
 tts:
-  engine: piper                               # piper (fast, lightweight) | kokoro (natural, heavier) — piper for 8GB Orin
+  # Choose which engine to load. To switch to Kokoro, comment out piper and uncomment kokoro:
+  engine: piper                               # Fast, lightweight, default for 8GB Orin
+  # engine: kokoro                            # Highly natural, emotive, ~1.5x real-time
+  
+  piper_model: en_US-hfc_female-medium
   voice: af_heart                             # Kokoro voices: af_heart, af_bella, af_sarah, af_nicole, af_sky
+  
   speaking_rate: 1.1
   lang: en-us
   output_sample_rate: 24000
-  piper_model: en_US-hfc_female-medium
   loud_fallback: true                         # log ERROR if primary engine fails to a fallback
 
 # ── Voice Activity Detection ────────────────────────────────────────────────

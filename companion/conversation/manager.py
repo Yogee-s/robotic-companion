@@ -605,6 +605,25 @@ class ConversationManager:
 
         return final
 
+    def prefill_prompt(self) -> None:
+        """Called externally (e.g. from PTT spacebar press) to warm up the LLM."""
+        def _task():
+            try:
+                system = build_system_prompt(
+                    self._llm.system_prompt + " " + _SHORT_OPENER_DIRECTIVE,
+                    verbosity=self._verbosity,
+                    singlish=self._singlish,
+                    speaker_name=self._current_speaker,
+                )
+                self._llm.prefill(
+                    user_message="",
+                    history=self._history[-self._max_history * 2 :],
+                    system_prompt=system,
+                )
+            except Exception as exc:
+                log.debug("prefill_prompt skipped: %r", exc)
+        threading.Thread(target=_task, daemon=True, name="PrefillPrompt").start()
+
     def _prefill_async(self, turn: Turn, partial: str) -> None:
         """Fire-and-forget KV-cache warm using the partial user text."""
         if turn.is_cancelled:

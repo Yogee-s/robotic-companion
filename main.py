@@ -574,6 +574,10 @@ def _run_headless(subsystems) -> int:
                     cap_alive, last_chunk_age,
                 )
 
+                # Pre-warm the LLM KV cache with the system prompt while the user speaks
+                if hasattr(conversation, "prefill_prompt"):
+                    conversation.prefill_prompt()
+
                 audio_in.add_tap(_tap)
                 record_start = time.time()
                 last_space_ts = record_start
