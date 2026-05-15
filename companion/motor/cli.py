@@ -396,22 +396,22 @@ def cmd_assign_id(args) -> int:
     cfg, _ = _config_and_path(use_sim=args.sim)
     if args.port:
         cfg.port = args.port
-    from companion.motor.controller import HeadController
+    from companion.motor.bus import ST3215Bus
 
-    ctrl = HeadController(cfg)
-    ctrl.connect()
+    bus = ST3215Bus(port=cfg.port, baudrate=cfg.baudrate)
+    bus.open()
     try:
-        if not ctrl.bus.ping(args.from_id):
+        if not bus.ping(args.from_id):
             print(f"No servo found at id {args.from_id}")
             return 1
-        ctrl.bus.set_id(args.from_id, args.to_id)
+        bus.set_id(args.from_id, args.to_id)
         print(f"Servo id {args.from_id} → {args.to_id}")
-        if ctrl.bus.ping(args.to_id):
+        if bus.ping(args.to_id):
             print(f"Confirmed: servo now responds at id {args.to_id}")
         else:
             print(f"Warning: servo did not respond at id {args.to_id} after assignment")
     finally:
-        ctrl.disconnect()
+        bus.close()
     return 0
 
 
