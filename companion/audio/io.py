@@ -332,7 +332,16 @@ class AudioOutput:
         self._last_play_end: float = 0.0  # timestamp when playback last ended
 
         if AudioOutput._alsa_device is None:
-            AudioOutput._alsa_device = self._detect_speaker()
+            cfg_dev = config.get("output_device_name", "").strip()
+            if cfg_dev:
+                if cfg_dev in ("pulse", "default"):
+                    AudioOutput._alsa_device = cfg_dev
+                elif not cfg_dev.startswith("plughw:") and not cfg_dev.startswith("hw:"):
+                    AudioOutput._alsa_device = f"plughw:{cfg_dev},0"
+                else:
+                    AudioOutput._alsa_device = cfg_dev
+            else:
+                AudioOutput._alsa_device = self._detect_speaker()
         logger.info(f"Audio output: {AudioOutput._alsa_device or 'system default'}")
 
     @staticmethod

@@ -95,7 +95,7 @@ audio:
   channels: 1
   chunk_size: 512                             # 32 ms at 16 kHz (Silero-compatible)
   input_device_name: ReSpeaker
-  output_device_name: ""
+  output_device_name: "pulse"
   input_gain: 4.0                             # 8x clipped; 4x keeps peaks headroom while boosting speech above the Silero threshold
 
 # ── ReSpeaker mic array (DOA + LEDs) ────────────────────────────────────────

@@ -18,6 +18,7 @@
 # ── Core ──
 PyYAML>=6.0
 numpy>=1.24,<2                     # torch Jetson wheel requires numpy <2
+huggingface-hub>=0.20              # required for scripts/download_models.py
 
 # ── Audio I/O ──
 PyAudio>=0.2.13
@@ -58,7 +59,7 @@ pygame>=2.5.0
 pyserial>=3.5                      # Jetson ↔ ESP32 serial
 
 # ── GUI ──
-PyQt5>=5.15
+# PyQt5>=5.15                      # Installed via apt to avoid Jetson OOM
 pyqtgraph>=0.13
 
 # ── Vision (emotion + face + VLM) ──

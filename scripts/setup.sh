@@ -31,15 +31,15 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     espeak-ng libespeak-ng-dev \
     v4l-utils libv4l-dev \
     libgl1 libglib2.0-0 \
-    qtbase5-dev libqt5gui5 libqt5widgets5 libxkbcommon-x11-0 \
+    qtbase5-dev libqt5gui5 libqt5widgets5 libxkbcommon-x11-0 python3-pyqt5 \
     cuda-nvcc-12-6 libcublas-dev-12-6 \
-    linux-headers-$(uname -r) \
+    nvidia-l4t-kernel-headers \
     usbutils
 
 # ── 2. venv + pip requirements ─────────────────────────────────────────────
 if [ ! -d "companion_env" ]; then
     log "Creating venv..."
-    python3 -m venv companion_env
+    python3 -m venv --system-site-packages companion_env
 fi
 # shellcheck disable=SC1091
 source companion_env/bin/activate
