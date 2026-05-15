@@ -38,11 +38,18 @@ def make_renderer(cfg: DisplayConfig) -> Optional[Renderer]:
 
             return ESP32SerialRenderer(cfg)
         except Exception as exc:
-            log.warning(f"ESP32 serial backend unavailable: {exc!r}; trying pygame.")
-    try:
-        from companion.display.backends.pygame import PygameRenderer
+            log.warning(f"ESP32 serial backend unavailable: {exc!r}")
+            return None
+    elif backend == "pygame":
+        try:
+            from companion.display.backends.pygame import PygameRenderer
 
-        return PygameRenderer(cfg)
-    except Exception as exc:
-        log.error(f"No display backend available: {exc!r}")
+            return PygameRenderer(cfg)
+        except Exception as exc:
+            log.error(f"Pygame backend unavailable: {exc!r}")
+            return None
+    elif backend == "none":
+        return None
+    else:
+        log.warning(f"Unknown display backend {backend!r}")
         return None

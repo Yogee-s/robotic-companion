@@ -110,8 +110,12 @@ class ESP32SerialRenderer:
         # "none" is sent when no hint is set so the parser has a stable
         # sentinel instead of an empty string.
         expr = fs.expression or "none"
+        valence = fs.valence
+        if fs.talking:
+            valence = 0.8  # Forces 'happy squint' (eyes closed) in firmware
+            
         line = (
-            f"FACE v={fs.valence:+.2f} a={fs.arousal:+.2f} "
+            f"FACE v={valence:+.2f} a={fs.arousal:+.2f} "
             f"talk={int(fs.talking)} listen={int(fs.listening)} "
             f"think={int(fs.thinking)} sleep={int(fs.sleep)} "
             f"gaze={fs.gaze_x * 45:+.0f} privacy={int(fs.privacy)} "
@@ -120,18 +124,8 @@ class ESP32SerialRenderer:
         self._write(line)
 
     def _send_viseme(self, now: float) -> None:
-        with self._visemes_lock:
-            events = list(self._visemes)
-            start = self._viseme_started_at
-        if not events or start is None:
-            return
-        elapsed = now - start
+        # The user requested to disable mouth movement entirely.
         current = "rest"
-        for ev in events:
-            if ev.start_s <= elapsed:
-                current = ev.viseme
-            else:
-                break
         if current != self._last_viseme_sent:
             self._write(f"VISEME {current}\n")
             self._last_viseme_sent = current

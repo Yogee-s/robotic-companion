@@ -91,7 +91,7 @@ _SHORT_OPENER_DIRECTIVE = (
     "'Well,' or 'So,'. You may elaborate in the sentences after."
 )
 
-_AFFECT_RE = re.compile(r"\s*\[affect:\s*([a-z_]+)\s*\]\s*$", re.IGNORECASE)
+_AFFECT_RE = re.compile(r"\[affect:\s*([a-z_]+)\s*\]", re.IGNORECASE)
 _MUMBLE_PROMPTS = ("Hmm?", "Sorry?", "Didn't catch that.")
 
 
@@ -278,7 +278,7 @@ class ConversationManager:
 
                 # Barge-in while speaking
                 if state == ConversationState.SPEAKING:
-                    if not self._allow_interruption:
+                    if not self._allow_interruption or self._mode == "ptt":
                         continue
                     if self._audio_output.is_playing or self._audio_output.recently_played:
                         # Keep barge-in detector's noise floor updated even while speaking.
@@ -711,6 +711,14 @@ class ConversationManager:
                     continue
                 if turn.is_cancelled or self.state != ConversationState.SPEAKING:
                     break
+
+                # Extract and publish affect tag mid-stream before synthesis
+                sentence, affect = _extract_affect_tag(sentence)
+                if affect:
+                    self._publish(_AffectTagEvent(tag=affect))
+                if not sentence:
+                    continue
+
                 try:
                     pcm = self._tts.synthesize(sentence)
                 except Exception as exc:
@@ -727,7 +735,7 @@ class ConversationManager:
                     self._publish(TurnFirstAudio(turn_id=turn.turn_id))
                 # Viseme stream for face lip-sync
                 try:
-                    from companion.audio import lip_sync  # local import
+                    from companion.display import lip_sync  # local import
                     pcm_np = np.frombuffer(pcm, dtype=np.int16)
                     events = lip_sync.visemes_from_pcm(pcm_np, self._tts.output_sample_rate)
                     if events:
@@ -735,7 +743,7 @@ class ConversationManager:
                             turn_id=turn.turn_id,
                             events=list(events),
                             sample_rate=self._tts.output_sample_rate,
-                            timestamp=time.time(),
+                            timestamp=time.time() + 0.25,
                         ))
                 except Exception:
                     pass
@@ -801,12 +809,35 @@ class ConversationManager:
             pcm = None
         if pcm is None:
             return
+
+        old_state = self.state
+        if old_state != ConversationState.SPEAKING:
+            self._set_state(ConversationState.SPEAKING)
+
         self._audio_output.start_stream(self._tts.output_sample_rate)
         self._audio_output.write_stream(pcm)
+        
+        try:
+            from companion.display import lip_sync
+            pcm_np = np.frombuffer(pcm, dtype=np.int16)
+            events = lip_sync.visemes_from_pcm(pcm_np, self._tts.output_sample_rate)
+            if events:
+                self._publish(VisemeStream(
+                    turn_id="system",
+                    events=list(events),
+                    sample_rate=self._tts.output_sample_rate,
+                    timestamp=time.time() + 0.25,
+                ))
+        except Exception:
+            pass
+            
         if turn is not None and turn.trace.t_first_audio is None:
             turn.mark("first_audio")
             self._publish(TurnFirstAudio(turn_id=turn.turn_id))
         self._audio_output.finish_stream()
+
+        if self.state == ConversationState.SPEAKING:
+            self._set_state(old_state)
         if turn is not None:
             turn.mark("audio_end")
         if self.on_audio_pcm is not None:

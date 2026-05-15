@@ -16,8 +16,12 @@ cd "$(dirname "$0")/../firmware/companion_face"
 # ── 1. PlatformIO available? ──────────────────────────────────────────
 if ! command -v pio >/dev/null 2>&1; then
     echo "Installing PlatformIO..."
-    pip install --user platformio >/dev/null
-    export PATH="$HOME/.local/bin:$PATH"
+    if [ -n "${VIRTUAL_ENV-}" ]; then
+        pip install platformio >/dev/null
+    else
+        pip install --user platformio >/dev/null
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
 fi
 
 # ── 2. Pick the screen by USB identity, not by enumeration order ──────

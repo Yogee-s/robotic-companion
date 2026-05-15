@@ -537,7 +537,9 @@ def _run_headless(subsystems) -> int:
             return
 
         try:
-            tty.setcbreak(sys.stdin.fileno())
+            new_attrs = termios.tcgetattr(sys.stdin.fileno())
+            new_attrs[3] = new_attrs[3] & ~termios.ICANON & ~termios.ECHO
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, new_attrs)
             while not stop_event.is_set():
                 r, _, _ = select.select([sys.stdin], [], [], 0.25)
                 if not r:

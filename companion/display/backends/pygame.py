@@ -32,7 +32,7 @@ from companion.display.state import (
 def _draw_zzz(pygame_mod, surf, x: int, y: int) -> None:
     """Draw three ascending Z's near (x, y) to indicate sleep.
     Uses line strokes so no font is required."""
-    col = (220, 220, 240)
+    col = (0, 230, 255)
     for i, scale in enumerate((1.0, 0.7, 0.45)):
         sz = int(18 * scale)
         ox = x - i * int(sz * 0.9)
@@ -44,11 +44,11 @@ def _draw_zzz(pygame_mod, surf, x: int, y: int) -> None:
 
 
 def _draw_spiral_eye(pygame_mod, surf, cx: int, cy: int, radius: int,
-                     colour=(220, 220, 240), width: int = 2) -> None:
+                     colour=(0, 230, 255), width: int = 2) -> None:
     """Cartoon confusion-swirl eye: a single continuous spiral traced
     from centre outward, so it reads unambiguously as a vortex."""
     # Filled backdrop disk so the spiral reads on the face bg.
-    pygame_mod.draw.circle(surf, (18, 18, 30), (cx, cy), radius + 2)
+    pygame_mod.draw.circle(surf, (10, 14, 24), (cx, cy), radius + 2)
     # Archimedean spiral: r(t) = k*t, ~2 full turns.
     pts = []
     turns = 2.1
@@ -66,7 +66,7 @@ def _draw_spiral_eye(pygame_mod, surf, cx: int, cy: int, radius: int,
 
 
 def _draw_question_mark(pygame_mod, surf, x: int, y: int,
-                        sz: int = 22, col=(250, 230, 170)) -> None:
+                        sz: int = 22, col=(255, 220, 0)) -> None:
     """Floating '?' glyph drawn from a hook arc + stem + dot. No font
     dependency — just lines and arcs so it renders the same everywhere."""
     # Hook of the '?'
@@ -81,8 +81,8 @@ def _draw_question_mark(pygame_mod, surf, x: int, y: int,
 
 def _draw_gear(pygame_mod, surf, cx: int, cy: int, r: int = 12) -> None:
     """Small cog — the universal 'thinking / processing' icon."""
-    body = (200, 200, 220)
-    hole = (18, 18, 30)
+    body = (0, 200, 255)
+    hole = (10, 14, 24)
     pygame_mod.draw.circle(surf, body, (cx, cy), r, 2)
     for i in range(8):
         ang = i * math.pi / 4
@@ -95,16 +95,16 @@ def _draw_gear(pygame_mod, surf, cx: int, cy: int, r: int = 12) -> None:
 def _draw_ellipsis(pygame_mod, surf, x: int, y: int,
                    dot_sp: int = 9) -> None:
     """Three horizontal dots '...' for the thinking face."""
-    col = (220, 220, 240)
+    col = (0, 230, 255)
     for i in range(3):
         pygame_mod.draw.circle(surf, col, (x + i * dot_sp, y), 2)
 
 
 def _draw_bulb(pygame_mod, surf, x: int, y: int, sz: int = 22) -> None:
     """Classic lightbulb with rays — the 'idea!' icon."""
-    bulb = (250, 230, 90)
-    bulb_outline = (140, 110, 30)
-    ray_col = (235, 210, 90)
+    bulb = (255, 230, 0)
+    bulb_outline = (180, 140, 0)
+    ray_col = (255, 210, 0)
     base_col = (150, 130, 70)
     # Radiating rays
     for i in range(8):
@@ -153,7 +153,7 @@ def _draw_sound_arcs(pygame_mod, surf, cx: int, cy: int,
                      facing: int = 1) -> None:
     """Concentric quarter-arcs indicating inbound sound (listening icon).
     `facing=+1` → arcs open to the right; `-1` → open to the left."""
-    col = (130, 200, 240)
+    col = (0, 180, 255)
     # Quarter-arc angular span
     if facing > 0:
         a0, a1 = -math.pi / 4, math.pi / 4
@@ -167,7 +167,7 @@ def _draw_sound_arcs(pygame_mod, surf, cx: int, cy: int,
 
 def _draw_tear(pygame_mod, surf, x: int, y: int) -> None:
     """A single teardrop — used for sad expression."""
-    col = (110, 170, 240)
+    col = (0, 200, 255)
     # Body (drop shape): triangle on top, circle at bottom
     pygame_mod.draw.polygon(surf, col, [(x, y), (x - 5, y + 9), (x + 5, y + 9)])
     pygame_mod.draw.circle(surf, col, (x, y + 12), 5)
@@ -189,7 +189,7 @@ def _draw_sparkle(pygame_mod, surf, x: int, y: int, sz: int = 8) -> None:
 
 def _draw_anger_mark(pygame_mod, surf, x: int, y: int) -> None:
     """Four radial 'veins' — the classic anime anger symbol."""
-    col = (230, 90, 90)
+    col = (255, 50, 50)
     for ang in (0.0, math.pi / 2, math.pi, 3 * math.pi / 2):
         dx = int(10 * math.cos(ang))
         dy = int(10 * math.sin(ang))
@@ -200,7 +200,7 @@ def _draw_anger_mark(pygame_mod, surf, x: int, y: int) -> None:
 
 def _draw_wavy_mouth(pygame_mod, surf, cx: int, cy: int, width: int) -> None:
     """Zig-zag mouth — used for confused (can't decide a smile or a frown)."""
-    col = (240, 200, 210)
+    col = (0, 230, 255)
     pts = []
     steps = 6
     for i in range(steps + 1):
@@ -268,6 +268,14 @@ class PygameRenderer:
         clock = pygame.time.Clock()
         font = pygame.font.SysFont(None, 20)
 
+        # Pre-render circular bezel
+        w, h = screen.get_size()
+        cx, cy = w // 2, h // 2
+        display_radius = min(w, h) // 2
+        bezel = pygame.Surface((w, h), pygame.SRCALPHA)
+        bezel.fill((0, 0, 0, 255))
+        pygame.draw.circle(bezel, (0, 0, 0, 0), (cx, cy), display_radius)
+
         blink_phase = 0.0
         last_frame_t = time.time()
         while self._running:
@@ -292,7 +300,8 @@ class PygameRenderer:
             current_viseme = self._current_viseme(now)
 
             # ── draw ────────────────────────────────────────────────────
-            screen.fill((18, 18, 30))
+            screen.fill((0, 0, 0))
+            pygame.draw.circle(screen, (10, 14, 24), (cx, cy), display_radius)
             self._draw_face(
                 pygame,
                 screen,
@@ -303,6 +312,9 @@ class PygameRenderer:
 
             if fs.privacy:
                 self._draw_privacy_band(pygame, screen)
+
+            # Apply circular bezel to simulate round LCD
+            screen.blit(bezel, (0, 0))
 
             if self._scene == Scene.QUICK_GRID:
                 self._draw_quick_grid(pygame, screen, font)
@@ -336,10 +348,10 @@ class PygameRenderer:
         eye_y = int(cy - h * 0.08)
         eye_dx = int(w * 0.15)
         eye_offset = int(fs.gaze_x * eye_rad * 0.6)
-        eye_col = (220, 220, 240)
-        pupil_col = (20, 24, 40)
-        brow_col = (240, 240, 255)
-        mouth_col = (240, 200, 210)
+        eye_col = (0, 230, 255)
+        pupil_col = (0, 0, 0)
+        brow_col = (0, 255, 255)
+        mouth_col = (0, 230, 255)
 
         # ── Dedicated sleep face ────────────────────────────────────────
         if fs.sleep:
@@ -391,7 +403,7 @@ class PygameRenderer:
             q_sz = max(16, int(min(w, h) * 0.08))
             marks = (
                 # (x_offset, y_offset, scale, colour)
-                (-int(w * 0.30), -int(h * 0.28), 1.15, (250, 230, 170)),
+                (-int(w * 0.30), -int(h * 0.28), 1.15, (255, 220, 0)),
                 (+int(w * 0.28), -int(h * 0.24), 1.00, (255, 210, 140)),
                 (+int(w * 0.36), +int(h * 0.02), 0.70, (220, 200, 150)),
             )
@@ -783,7 +795,7 @@ class PygameRenderer:
         for i, label in enumerate(labels):
             r = pygame_mod.Rect((i % 2) * tile_w, (i // 2) * tile_h, tile_w, tile_h)
             pygame_mod.draw.rect(surf, (49, 50, 68), r.inflate(-8, -8), border_radius=12)
-            txt = font.render(label, True, (220, 220, 240))
+            txt = font.render(label, True, (0, 230, 255))
             surf.blit(txt, txt.get_rect(center=r.center))
 
     def _draw_more_list(self, pygame_mod, surf, font) -> None:
@@ -795,7 +807,7 @@ class PygameRenderer:
         for idx, (_action, label) in enumerate(MORE_LIST_ACTIONS):
             r = pygame_mod.Rect(8, 4 + idx * row_h, w - 16, row_h - 4)
             pygame_mod.draw.rect(surf, (49, 50, 68), r, border_radius=8)
-            txt = font.render(label, True, (220, 220, 240))
+            txt = font.render(label, True, (0, 230, 255))
             surf.blit(txt, (r.x + 12, r.y + 8))
 
     # ── touch / click handling ──────────────────────────────────────────

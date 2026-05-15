@@ -57,7 +57,6 @@ _CONV_MAP: dict[str, ConversationalState] = {
 # translate the richer LLM palette onto that limited set.
 _AFFECT_EXPRESSION: dict[str, str] = {
     "happy":        "excited",
-    "curious":      "confused",
     "confused":     "confused",
     "surprised":    "surprised",
     "affectionate": "excited",
@@ -173,7 +172,7 @@ class BehaviorEngine:
                 if self._emotion is not None:
                     em = self._emotion.get_state()
                 else:
-                    em = EmotionState()
+                    em = EmotionState(valence=0.5, arousal=0.5)
 
                 # Edge-publish face presence transitions for the Coordinator.
                 has_face = bool(getattr(em, "has_face", False))
@@ -194,7 +193,7 @@ class BehaviorEngine:
                 doa: Optional[float] = None
                 if self._respeaker is not None and getattr(self._respeaker, "is_connected", False):
                     try:
-                        doa = float(self._respeaker.get_doa())
+                        doa = float(self._respeaker.get_doa_signed())
                     except Exception:
                         doa = None
 

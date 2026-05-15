@@ -287,7 +287,13 @@ class AudioInput:
         if self._arecord_proc:
             try:
                 self._arecord_proc.terminate()
-                self._arecord_proc.wait(timeout=2.0)
+                self._arecord_proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                try:
+                    self._arecord_proc.kill()
+                    self._arecord_proc.wait(timeout=1.0)
+                except Exception:
+                    pass
             except Exception:
                 pass
             self._arecord_proc = None
@@ -489,6 +495,13 @@ class AudioOutput:
                 pass
             try:
                 self._aplay_proc.terminate()
+                self._aplay_proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                try:
+                    self._aplay_proc.kill()
+                    self._aplay_proc.wait(timeout=1.0)
+                except Exception:
+                    pass
             except Exception:
                 pass
         start = time.time()
