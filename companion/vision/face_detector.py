@@ -69,7 +69,7 @@ class FaceDetector:
     def detect(self, frame: np.ndarray) -> List[BBox]:
         img, scale, pad = self._letterbox(frame)
         nchw = img.transpose(2, 0, 1)[None].astype(np.float32) / 255.0
-        out = self._sess.run(None, {self._input_name: nchw})[0]        # [1, 300, 57]
+        out = self._sess.run(None, {self._input_name: nchw})[0]
         return self._postprocess(out[0], frame.shape[:2], scale, pad)
 
     # ── preprocessing ────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ class FaceDetector:
     # ── postprocessing ───────────────────────────────────────────────────
     def _postprocess(
         self,
-        detections: np.ndarray,                # [300, 57]
+        detections: np.ndarray,
         frame_shape: Tuple[int, int],
         scale: float,
         pad: Tuple[int, int],
@@ -99,14 +99,34 @@ class FaceDetector:
         fh, fw = frame_shape
         pad_x, pad_y = pad
         out: List[BBox] = []
-        confs = detections[:, 4]
-        keep = confs >= self._score_th
-        if not keep.any():
-            return out
-        dets = detections[keep]
+        
+        # Handle raw ONNX [56, 8400] vs NMS ONNX [300, 57]
+        if detections.shape[0] == 56:
+            detections = detections.T  # [8400, 56]
+            confs = detections[:, 4]
+            keep = confs >= self._score_th
+            dets = detections[keep]
+            
+            if len(dets) == 0:
+                return out
+                
+            # Raw output needs NMS
+            boxes = dets[:, :4].copy()
+            boxes[:, 0] -= boxes[:, 2] / 2  # cx -> x
+            boxes[:, 1] -= boxes[:, 3] / 2  # cy -> y
+            scores = dets[:, 4]
+            indices = cv2.dnn.NMSBoxes(boxes.tolist(), scores.tolist(), self._score_th, 0.45)
+            dets = dets[indices.flatten()]
+            kpt_offset = 5
+        else:
+            confs = detections[:, 4]
+            keep = confs >= self._score_th
+            dets = detections[keep]
+            kpt_offset = 6
+
         for det in dets:
             score = float(det[4])
-            kpts = det[6:6 + 17 * 3].reshape(17, 3)           # 17 kpts × (x, y, vis)
+            kpts = det[kpt_offset:kpt_offset + 17 * 3].reshape(17, 3)           # 17 kpts × (x, y, vis)
             head = kpts[list(_FACE_KPT_IDS)]
             vis = head[:, 2] >= self._kpt_vis_th
             if vis.sum() < 2:

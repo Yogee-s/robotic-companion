@@ -118,7 +118,7 @@ vision:
   width: 640                                  # 8GB Orin — 480p is plenty for face tracking; halves NVMM + CPU cost
   height: 480
   fps: 30
-  flip_method: 0                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
+  flip_method: 2                              # 0=none, 1=rot90ccw, 2=rot180 (upside down), 3=rot90cw, 4=hflip, 5=vflip
   use_csi: true
   detect_every_n_frames: 2
   yolo_pose_model_path: models/vision/yolo26n-pose.onnx
